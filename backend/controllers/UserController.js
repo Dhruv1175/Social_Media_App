@@ -1,0 +1,106 @@
+import express from "express";
+import bcrypt from "bcrypt";
+import usermodel from "../models/UserModel.js";
+import { AccessToken, RefreshToken } from "../utils/CreateToken.js";
+
+export const registerUser=async(req,res)=>{
+    try{
+    const{name,email,password,avatar,bio} = req.body;
+    const exist = await usermodel.findOne({email:email})
+    if(exist){
+        res.status(200).send({message:"User Already Exists.",success:false})
+    }
+    else{
+    const hashpass = bcrypt.hashSync(password,10)
+    const userdetails =  new usermodel({name:name,email:email,password:hashpass,avatar:avatar,bio:bio})
+    await userdetails.save()
+    if(userdetails){
+        res.status(200).send({message:"User Registered Successfully",success:true})
+    }
+    else{
+        res.status(200).send({message:"Something Went Wrong ",success:false})
+    }
+}
+}
+catch(error){
+    res.status(500).send({message:"Something Went Wrong"})
+}
+}
+
+export const loginUser = async(req,res)=>{
+    try{
+    const {email,password} = req.body
+    const exist = await usermodel.findOne({email:email})
+    if(exist){
+        const verify = await bcrypt.compare(password,exist.password)
+        if (verify){
+            const accesstoken = await  AccessToken(exist)
+            const refreshtoken = await  RefreshToken(exist)
+            res.status(200).send({message:"User Login SuccessFul",success:true,accesstoken,refreshtoken})
+        }
+        else{
+            res.status(200).send({message:"Incorrect Password , Please Try Again ",success:false})
+        }
+    }
+    else{
+        res.status(200).send({message:"User Not Found",success:false})
+    }
+}
+catch(error){
+    res.status(200).send({message:"Something Went Wrong",succcess:false})
+}
+}
+
+export const getUserProfile = async (req,res) =>{
+    try{
+        const {id} = req.params
+        const exist = await usermodel.findOne({_id:id})
+        if(exist){
+            res.status(200).send({exist,success:true})
+        }
+        else{
+            res.status(200).send({message:"User Profile Not Found",success:false})
+        }
+    }
+    catch(error){
+        res.status(200).send({message:"Something Went Wrong ",success:false})
+    }
+}
+
+export const updateProfile = async (req, res) => {
+    try {
+        const { id } = req.params; 
+        const { name, email, password, avatar, bio } = req.body;
+
+       
+        const exist = await usermodel.findOne({ _id: id });
+        if (!exist) {
+            return res.status(404).send({ message: "User Does Not Exist.", success: false }); 
+        }
+        const updateFields = {};
+
+        if (name) updateFields.name = name;
+        if (email) updateFields.email = email;
+        if (password) {
+            const hashpass = bcrypt.hashSync(password, 10);
+            updateFields.password = hashpass; 
+        }
+        if (avatar) updateFields.avatar = avatar;
+        if (bio) updateFields.bio = bio;
+
+        const updatedetails = await usermodel.findByIdAndUpdate(
+            id, 
+            { $set: updateFields }, 
+            { new: true } 
+        );
+
+        if (updatedetails) {
+            return res.status(200).send({ message: "User Details Updated Successfully", success: true });
+        } else {
+            return res.status(200).send({ message: "Update Failed", success: false }); 
+        }
+    } catch (error) {
+        res.status(200).send({ message: "Internal Server Error", success: false }); 
+    }
+};
+
