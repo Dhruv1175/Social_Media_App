@@ -2,6 +2,7 @@ import express from "express";
 import { verifyToken } from "../middleware/VerifyToken.js";
 import { getUserProfile, loginUser, registerUser, updateProfile } from "../controllers/UserController.js";
 import { createPost, deletePost, getOnePost, getPost, getUserPost, updatePost } from "../controllers/PostController.js";
+import { addComment, deleteComment, getComment, updateComment } from "../controllers/CommentController.js";
 
 const route = express.Router()
 
@@ -20,6 +21,13 @@ route.patch("/user/post/userpost/:postid/update",verifyToken,updatePost)
 route.delete("/user/post/userpost/:postid/delete",verifyToken,deletePost)
 
 //comment action routes
+route.post("/user/:userid/post/userpost/:postid/comment/add",verifyToken,addComment);
+route.get("/user/post/userpost/:postid/comment/get",verifyToken,getComment);
+route.patch("/user/post/userpost/comment/:commentid/update",verifyToken,updateComment);
+route.delete("/user/post/userpost/comment/:commentid/delete",verifyToken,deleteComment);
+
+//like action routes
+
 
 
 
