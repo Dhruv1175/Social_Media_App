@@ -3,6 +3,7 @@ import { verifyToken } from "../middleware/VerifyToken.js";
 import { getUserProfile, loginUser, registerUser, updateProfile } from "../controllers/UserController.js";
 import { createPost, deletePost, getOnePost, getPost, getUserPost, updatePost } from "../controllers/PostController.js";
 import { addComment, deleteComment, getComment, updateComment } from "../controllers/CommentController.js";
+import { toggleLikeComment, toggleLikePost } from "../controllers/LikeController.js";
 
 const route = express.Router()
 
@@ -27,7 +28,8 @@ route.patch("/user/post/userpost/comment/:commentid/update",verifyToken,updateCo
 route.delete("/user/post/userpost/comment/:commentid/delete",verifyToken,deleteComment);
 
 //like action routes
-
+route.post("/user/:userid/post/userpost/:postid/like",verifyToken,toggleLikePost)
+route.post("/user/:userid/post/userpost/:postid/comment/:commentid/like",verifyToken,toggleLikeComment)
 
 
 

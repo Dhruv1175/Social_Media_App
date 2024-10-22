@@ -9,6 +9,10 @@ const likestruct = mongoose.Schema({
         type:mongoose.Schema.Types.ObjectId,
         ref:'Post'
     },
+    comment:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:'Comment'
+    },
     date:{
         type:Date,
         default:Date.now
