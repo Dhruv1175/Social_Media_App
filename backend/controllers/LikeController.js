@@ -1,5 +1,6 @@
 import commentmodel from "../models/CommentModel.js";
 import likemodel from "../models/LikeModel.js";
+import notificationmodel from "../models/NotificationModel.js";
 import postmodel from "../models/PostModel.js";
 
 
@@ -16,6 +17,8 @@ export const toggleLikePost = async (req, res) => {
         if (!likeExists) {
             const likedata = new likemodel({ user: userid, post: postid });
             await likedata.save();
+            const notification = new notificationmodel({user:postExists.user,type:'like',post:postid || null ,fromUser:userid})
+                await notification.save()
             return res.status(200).send({ isLiked: true, success: true, message: "Post liked" });
         } else {
             await likemodel.findOneAndDelete({ user: userid, post: postid });
@@ -39,6 +42,8 @@ export const toggleLikeComment = async (req,res) => {
         if (!likeExists) {
             const likedata = new likemodel({ user: userid, post: postid ,comment:commentid});
             await likedata.save();
+            const notification = new notificationmodel({user:commentExists.user,type:'like',post:postid || null ,fromUser:userid})
+                await notification.save()
             return res.status(200).send({ isLiked: true, success: true, message: "Comment liked" });
         } else {
             await likemodel.findOneAndDelete({ user: userid, post: postid ,comment:commentid });

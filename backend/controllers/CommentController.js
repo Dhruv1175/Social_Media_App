@@ -1,4 +1,5 @@
 import commentmodel from "../models/CommentModel.js";
+import notificationmodel from "../models/NotificationModel.js";
 import postmodel from "../models/PostModel.js";
 
 
@@ -11,6 +12,8 @@ export const addComment = async(req,res) => {
             const comdata =  new commentmodel({user:userid,post:postid,text:text})
             await comdata.save()
             if(comdata){
+                const notification = new notificationmodel({user:exist.user,type:'comment',comment:comdata._id || null ,fromUser:userid})
+                await notification.save()
                 res.status(200).send({message:"Comment Added",success:true})
             }
             else {
