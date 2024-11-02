@@ -6,7 +6,7 @@ export const verifyToken=async(req,res,next)=>{
 
     try{
     const AccessToken = req.cookies.AccessToken
-    const token = req.headers['authorization']
+    const token = req.headers['authorization']?.split(' ')[1];
     if(token ){
 
         const decodeToken =  jwt.verify(token,process.env.ACCESS_TOKEN_KEY,(error,decode)=>{

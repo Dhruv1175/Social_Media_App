@@ -6,7 +6,8 @@ import { addComment, deleteComment, getComment, updateComment } from "../control
 import { toggleLikeComment, toggleLikePost } from "../controllers/LikeController.js";
 import { getFollow, getFollowing, toggleFollow } from "../controllers/FollowController.js";
 import { markAllNotificationsAsRead } from "../controllers/NotificationController.js";
-import { getMessage, sendMessage } from "../controllers/MessageController.js";
+import { DirectMessage, getMessage, sendMessage } from "../controllers/MessageController.js";
+import { searchPosts, searchUser } from "../controllers/SearchControllers.js";
 
 const route = express.Router()
 
@@ -45,6 +46,11 @@ route.get("/user/:userid/notification",verifyToken,markAllNotificationsAsRead)
 //message action routes
 route.post("/user/:userid/receiver/:receiverid/message/send",verifyToken,sendMessage)
 route.get("/user/:userid/message/get",verifyToken,getMessage)
+route.get("/user/:userid/:senderid/message/get",verifyToken,DirectMessage)
 
+
+//search action routes
+route.get("/user/search/:username",verifyToken,searchUser);
+route.get("/post/search/:keyword",verifyToken,searchPosts)
 
 export default route
