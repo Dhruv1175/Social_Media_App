@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import '../styles/Login.css';
 import axios from 'axios';
+import logo from '../assets/logo.png'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 
@@ -42,7 +43,7 @@ function Login() {
   return (
     <div className="login-container">
       <div className="left-column">
-        <img src="your-image-url.jpg" alt="Login" className="login-image" />
+        <img src={logo} alt="Login" className="login-image" />
       </div>
       <div className="right-column">
         <div className="login-box">
@@ -69,7 +70,7 @@ function Login() {
                 className="password-toggle-icon"
                 onClick={() => setShowPassword(!showPassword)}
               >
-                {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                {showPassword ?<VisibilityIcon />  :<VisibilityOffIcon /> }
               </span>
             </div>
             <button type="submit">Log In</button>
