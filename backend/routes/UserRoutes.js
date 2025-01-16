@@ -1,7 +1,7 @@
 import express from "express";
 import { verifyToken } from "../middleware/VerifyToken.js";
 import { getUserProfile, loginUser, registerUser, updateProfile } from "../controllers/UserController.js";
-import { createPost, deletePost, getOnePost, getPost, getUserPost, updatePost } from "../controllers/PostController.js";
+import { createPost, deletePost, feed, getOnePost, getPost, getUserPost, updatePost } from "../controllers/PostController.js";
 import { addComment, deleteComment, getComment, updateComment } from "../controllers/CommentController.js";
 import { toggleLikeComment, toggleLikePost } from "../controllers/LikeController.js";
 import { getFollow, getFollowing, toggleFollow } from "../controllers/FollowController.js";
@@ -24,6 +24,7 @@ route.get("/user/:userid/post/userpost/get",verifyToken,getUserPost);
 route.get("/user/post/userpost/:postid/get",verifyToken,getOnePost);
 route.patch("/user/post/userpost/:postid/update",verifyToken,updatePost);
 route.delete("/user/post/userpost/:postid/delete",verifyToken,deletePost);
+route.get("/user/post/:userid/feed",verifyToken,feed);
 
 //comment action routes
 route.post("/user/:userid/post/userpost/:postid/comment/add",verifyToken,addComment);

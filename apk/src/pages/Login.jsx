@@ -26,14 +26,12 @@ function Login() {
     
     try {
       const response = await axios.post('http://localhost:3080/user/login', formData);
-      const { token } = response.data; // Assuming the token is returned in the response
+      const { token } = response.data.accesstoken; // Assuming the token is returned in the response
       alert(response.data.message);
       
       // Store the token in local storage or set it in the headers for future requests
       localStorage.setItem('accessToken', token);  // Optionally, store it in localStorage
       axios.defaults.headers['Authorization'] = `Bearer ${token}`; // Set token globally for axios requests
-
-      // Redirect after login (to dashboard or homepage, for example)
       window.location.href = "/home"; // Modify this to your desired route
     } catch (error) {
       alert(error.response?.data?.message || "Login failed. Please try again.");

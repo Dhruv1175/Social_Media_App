@@ -1,5 +1,5 @@
 import postmodel from "../models/PostModel.js"
-
+import usermodel from "../models/UserModel.js"
 
 export const createPost = async(req,res)=>{
     try{
@@ -94,6 +94,26 @@ export const deletePost = async(req,res) => {
             res.status(200).send({message:"Data Deleted!!",success:true})
         }
         else res.status(200).send({message:"Could Not Perform The Action",success:false})
+    }
+    catch(error){
+        res.status(500).send({message:"Something Went Wrong",success:false})
+    }
+}
+
+export const feed = async(req,res) => {
+    try{
+        const userid = req.params.userid;
+        const user = await usermodel.findById({userid});
+        if (!user) {
+            return res.status(404).send({ message: "User not found", success: false });
+        }
+
+        
+        const posts = await postmodel.find({ user: { $in: user.following } })
+            .populate('user', 'name avatar') // Populate user details (e.g., name and avatar)
+            .sort({ createdAt: -1 }); // Sort posts by newest first
+
+        res.status(200).send({ message: "Feed fetched successfully", success: true, posts });
     }
     catch(error){
         res.status(500).send({message:"Something Went Wrong",success:false})
