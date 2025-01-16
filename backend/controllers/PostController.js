@@ -1,5 +1,6 @@
 import postmodel from "../models/PostModel.js"
 import usermodel from "../models/UserModel.js"
+import followermodel from "../models/FollowModel.js"
 
 export const createPost = async(req,res)=>{
     try{
@@ -101,21 +102,38 @@ export const deletePost = async(req,res) => {
 }
 
 export const feed = async(req,res) => {
-    try{
-        const userid = req.params.userid;
-        const user = await usermodel.findById({userid});
-        if (!user) {
-            return res.status(404).send({ message: "User not found", success: false });
+  
+        try {
+            const { userid } = req.params;
+            console.log(userid);
+            // Step 2: Fetch following data
+            const following = await followermodel
+                .find({ follower:userid })
+                .populate('following', '_id name avatar');
+    
+            console.log("Following Data:", following);
+    
+            if (!following || following.length === 0) {
+                return res.status(200).send({ message: "No posts available", success: true, posts: [] });
+            }
+    
+            // Step 3: Extract following IDs
+            const followingIds = following.map(f => f.following?._id);
+            console.log("Following IDs:", followingIds);
+    
+            // Step 4: Fetch posts for followed users
+            const posts = await postmodel
+                .find({ user: { $in: followingIds } })
+                .populate('user', 'name avatar')
+                .sort({ date: -1 });
+    
+            res.status(200).send({ message: "Feed fetched successfully", success: true, posts });
+        } catch (error) {
+            console.error("Error in getFeed:", error);
+            res.status(500).send({ message: "Something Went Wrong", success: false });
         }
-
-        
-        const posts = await postmodel.find({ user: { $in: user.following } })
-            .populate('user', 'name avatar') // Populate user details (e.g., name and avatar)
-            .sort({ createdAt: -1 }); // Sort posts by newest first
-
-        res.status(200).send({ message: "Feed fetched successfully", success: true, posts });
-    }
-    catch(error){
-        res.status(500).send({message:"Something Went Wrong",success:false})
-    }
-}
+   
+    
+    
+    };
+    
