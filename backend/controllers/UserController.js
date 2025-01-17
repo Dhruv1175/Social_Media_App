@@ -36,7 +36,7 @@ export const loginUser = async(req,res)=>{
         if (verify){
             const accesstoken = await  AccessToken(exist)
             const refreshtoken = await  RefreshToken(exist)
-            res.status(200).send({message:"User Login SuccessFul",success:true,accesstoken,refreshtoken})
+            res.status(200).send({message:"User Login SuccessFul",success:true,accesstoken,refreshtoken,userId:exist._id})
         }
         else{
             res.status(200).send({message:"Incorrect Password , Please Try Again ",success:false})

@@ -105,23 +105,15 @@ export const feed = async(req,res) => {
   
         try {
             const { userid } = req.params;
-            console.log(userid);
-            // Step 2: Fetch following data
+      
             const following = await followermodel
                 .find({ follower:userid })
                 .populate('following', '_id name avatar');
     
-            console.log("Following Data:", following);
-    
             if (!following || following.length === 0) {
                 return res.status(200).send({ message: "No posts available", success: true, posts: [] });
             }
-    
-            // Step 3: Extract following IDs
             const followingIds = following.map(f => f.following?._id);
-            console.log("Following IDs:", followingIds);
-    
-            // Step 4: Fetch posts for followed users
             const posts = await postmodel
                 .find({ user: { $in: followingIds } })
                 .populate('user', 'name avatar')
