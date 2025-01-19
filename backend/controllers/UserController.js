@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcrypt";
 import usermodel from "../models/UserModel.js";
 import { AccessToken, RefreshToken } from "../utils/CreateToken.js";
+import followermodel from "../models/FollowModel.js";
 
 export const registerUser=async(req,res)=>{
     try{
@@ -53,10 +54,25 @@ catch(error){
 
 export const getUserProfile = async (req,res) =>{
     try{
-        const {id} = req.params
-        const exist = await usermodel.findOne({_id:id})
-        if(exist){
-            res.status(200).send({exist,success:true})
+        const { id } = req.params;
+const exist = await usermodel.findOne({ _id: id });
+if (exist) {
+    // Fetch followers and following using the correct conditions
+    const followers = await followermodel.find({ follower: id });  // Fetch followers
+    const following = await followermodel.find({ following: id });  // Fetch following
+
+    // Add the followers and following arrays to the 'exist' object
+    exist.followers = followers;
+    exist.following = following;
+
+    // Optionally, update the user document if needed
+    await usermodel.findByIdAndUpdate(id, {
+        followers: followers,  // Store the full array
+        following: following    // Store the full array
+    });
+
+    // Send the response with the updated 'exist' object
+    res.status(200).send({ exist, success: true });
         }
         else{
             res.status(200).send({message:"User Profile Not Found",success:false})
