@@ -1,15 +1,15 @@
-/* General Layout */
+/* Profile Page Layout */
 .profile-page {
   display: flex;
-  min-height: 50vh;
-  background-color: #f9f9f9; /* Light background for contrast */
+  min-height: 100vh;
+  background-color: #f9f9f9;
   font-family: 'Roboto', sans-serif;
   color: #333;
 }
 
 .profile-main {
   flex-grow: 1;
-  padding: 20px 30px; /* Reduced padding for less wasted space */
+  padding: 20px 30px;
   max-width: 1000px;
   margin: auto;
 }
@@ -18,21 +18,21 @@
 .profile-header {
   display: flex;
   align-items: center;
-  margin-bottom: 20px; /* Reduced bottom margin */
+  margin-bottom: 20px;
   padding-bottom: 15px;
   border-bottom: 1px solid #ddd;
 }
 
 .profile-pic-container {
-  margin-right: 30px; /* Reduced for better alignment */
+  margin-right: 20px;
 }
 
 .profile-pic {
-  width: 200px; /* Slightly larger for prominence */
-  height: 200px;
+  width: 120px; /* Adjusted size for the profile picture */
+  height: 120px;
   border-radius: 50%;
   object-fit: cover;
-  border: 4px solid #fff;
+  border: 3px solid #fff;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -44,7 +44,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px; /* Tightened spacing */
+  margin-bottom: 10px;
 }
 
 .profile-top h2 {
@@ -93,7 +93,6 @@
   gap: 20px;
   font-size: 14px;
   color: #555;
-  margin-bottom: 10px; /* Reduced for compactness */
 }
 
 .stats span {
@@ -109,15 +108,6 @@
 .bio a {
   color: #0073e6;
   text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  margin-top: 8px;
-}
-
-.bio .link-icon {
-  width: 18px;
-  height: 18px;
-  margin-right: 5px;
 }
 
 /* Post Navigation */
@@ -125,7 +115,7 @@
   display: flex;
   justify-content: center;
   gap: 30px;
-  margin: 10px 0; /* Tightened spacing */
+  margin: 20px 0;
   border-bottom: 1px solid #dbdbdb;
   padding-bottom: 8px;
 }
@@ -135,8 +125,8 @@
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #666; /* Brighter text */
-  font-weight: 500; /* Stronger appearance */
+  color: #666;
+  font-weight: 500;
   cursor: pointer;
   padding: 10px 14px;
   border-radius: 6px;
@@ -144,7 +134,7 @@
 }
 
 .tab-button.active {
-  color: #0c0c0c; /* Vibrant color for active */
+  color: #0c0c0c;
   font-weight: 700;
   background: #e6f4fa;
   border: 1px solid #0c0c0c;
@@ -161,51 +151,112 @@
   gap: 20px;
 }
 
-.post-item {
+.post-card {
   position: relative;
   overflow: hidden;
   border-radius: 8px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   background: #fff;
+  padding: 15px;
 }
 
-.post-img {
-  width: 100%;
-  height: 100%;
+.post-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.post-user-avatar {
+  width: 32px; /* Smaller size for the post avatar */
+  height: 32px;
+  border-radius: 50%;
   object-fit: cover;
-  transition: transform 0.3s ease;
 }
 
-.post-item:hover .post-img {
-  transform: scale(1.05);
+.post-user-name {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.post-date {
+  font-size: 12px;
+  color: #888;
+}
+
+.post-image {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.post-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.post-icons {
+  display: flex;
+  gap: 10px;
+}
+
+.post-likes {
+  font-size: 14px;
+  font-weight: bold;
+  margin: 5px 0;
+}
+
+.post-text {
+  font-size: 14px;
+  color: #333;
 }
 
 .no-posts {
   text-align: center;
   font-size: 16px;
   color: #888;
-  margin-top: 30px; /* Reduced unnecessary gap */
+  margin-top: 30px;
 }
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+.edit-profile-form {
+  margin-top: 20px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  visibility: visible; /* Ensure visibility */
-  opacity: 1; /* Ensure it is not transparent */
+  flex-direction: column;
+  gap: 16px; /* Increased spacing */
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.modal-content {
-  background: white;
-  padding: 20px;
-  border-radius: 10px;
-  max-width: 500px;
+.edit-profile-form label {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.edit-profile-form input {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
   width: 100%;
 }
 
+.edit-profile-form input:focus {
+  border-color: #0095f6;
+  outline: none;
+  box-shadow: 0 0 3px rgba(0, 149, 246, 0.5);
+}
+
+.edit-profile-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.edit-profile-buttons .primary-button {
+  padding: 6px 12px;
+}
