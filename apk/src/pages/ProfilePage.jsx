@@ -1,4 +1,3 @@
-// ProfilePage.jsx
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import axios from 'axios';
@@ -55,19 +54,25 @@ const ProfilePage = () => {
     try {
       const token = localStorage.getItem('accessToken');
       const userId = localStorage.getItem('userId');
-      let avatarUrl = editData.avatar;
 
+      let updatedData = {};
+      if (editData.name) updatedData.name = editData.name;
+      if (editData.bio) updatedData.bio = editData.bio; // Bio as a string
       if (editData.avatar instanceof File) {
-        avatarUrl = await handleImageUpload(editData.avatar);
+        const avatarUrl = await handleImageUpload(editData.avatar);
+        updatedData.avatar = avatarUrl;
       }
 
       await axios.patch(
         `http://localhost:3080/user/update/${userId}`,
-        { name: editData.name, bio: editData.bio, avatar: avatarUrl },
+        updatedData,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setUser({ ...user, name: editData.name, bio: { description: editData.bio }, avatar: avatarUrl });
+      setUser({
+        ...user,
+        ...updatedData, // Update user state
+      });
       setEditMode(false);
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -87,16 +92,17 @@ const ProfilePage = () => {
       <Sidebar user={user} />
       <div className="profile-main">
         {editMode ? (
-          <div className="edit-profile">
+          <div className="edit-profile-form">
             <h2>Edit Profile</h2>
             <div className="edit-avatar">
               <img
                 src={
                   editData.avatar instanceof File
                     ? URL.createObjectURL(editData.avatar)
-                    : editData.avatar || 'https://via.placeholder.com/150'
+                    : editData.avatar || user?.avatar || 'https://via.placeholder.com/150'
                 }
                 alt="Avatar Preview"
+                className="avatar-preview"
               />
               <input
                 type="file"
@@ -109,12 +115,12 @@ const ProfilePage = () => {
                 type="text"
                 value={editData.name}
                 onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                placeholder="Name"
-              />
+                placeholder={user?.name || 'Name'}
+              /><br></br><br></br>
               <textarea
                 value={editData.bio}
                 onChange={(e) => setEditData({ ...editData, bio: e.target.value })}
-                placeholder="Bio"
+                placeholder={user?.bio || 'Bio'}
               />
             </div>
             <div className="edit-actions">
@@ -154,17 +160,17 @@ const ProfilePage = () => {
                   <span><strong>{user?.following?.length}</strong> following</span>
                 </div>
                 <div className="bio">
-                  <p>{user?.bio?.description || 'Bio description here'}</p>
+                  <p>{user?.bio || 'Bio description here'}</p>
                 </div>
               </div>
             </div>
-
+            <br></br>
             <div className="post-navigation">
               <button className="tab-button active">
                 <Grid />
                 POSTS
               </button>
-              <button className="tab-button">
+              <button className="tab-button active">
                 <Bookmark />
                 SAVED
               </button>

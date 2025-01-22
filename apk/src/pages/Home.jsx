@@ -25,7 +25,7 @@ function Home1() {
           
         //]);
        // const storiesResponse = await  axios.get('/api/stories', { headers: { Authorization: `Bearer ${token}` } });
-        const postsResponse = await axios.get(`http://localhost:3080/user/post/671a37ae3c913946f010a726/feed`, { headers: { Authorization: `Bearer ${token}` } })
+        const postsResponse = await axios.get(`http://localhost:3080/user/post/${userId}/feed`, { headers: { Authorization: `Bearer ${token}` } })
         const userResponse = await  axios.get(`http://localhost:3080/user/profile/${userId}`, { headers: { Authorization: `Bearer ${token}` } })
         //console.log('Stories:', storiesResponse.data);
         console.log('Posts:', postsResponse.data.posts);
