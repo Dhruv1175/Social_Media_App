@@ -1,6 +1,7 @@
 import postmodel from "../models/PostModel.js"
 import usermodel from "../models/UserModel.js"
 import followermodel from "../models/FollowModel.js"
+import savedpostmodel from "../models/SavedPostModel.js"
 
 export const createPost = async(req,res)=>{
     try{
@@ -128,4 +129,43 @@ export const feed = async(req,res) => {
     
     
     };
-    
+
+export const savedPost =async(req,res)=>{
+    try{
+        const {userid,postid} = req.params;
+        const post = await postmodel.findById({_id:postid})
+        if (!post){
+            return res.status(200).send({message:"Post Not Found",success:false})
+        }
+        else{
+            const savedPost = new savedpostmodel({user:userid,post:postid})
+            await savedPost.save()
+            if(savedPost){
+                res.status(200).send({message:"Post Saved Successfully",success:true})
+            }
+            else{
+                res.status(200).send({message:"Post Not Saved",success:false})
+            }
+        }
+
+    }
+    catch(error){
+        res.status(500).send({message:"Something Went Wrong",success:false})
+    }
+}
+
+export const getSavedPost = async (req,res) =>{
+    try{
+        const {userid} = req.params;
+        const data = await savedpostmodel.find({user:userid}).populate('post');
+        if(data){
+            res.status(200).send({data,success:true})
+        }
+        else{
+            res.status(200).send({message:"Could Not Fetch Data",success:false})
+        }
+    }
+    catch(error){
+        res.status(500).send({message:"Something Went Wrong",success:false})
+    }
+}
