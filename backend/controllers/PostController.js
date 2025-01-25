@@ -130,29 +130,44 @@ export const feed = async(req,res) => {
     
     };
 
-export const savedPost =async(req,res)=>{
-    try{
-        const {userid,postid} = req.params;
-        const post = await postmodel.findById({_id:postid})
-        if (!post){
-            return res.status(200).send({message:"Post Not Found",success:false})
-        }
-        else{
-            const savedPost = new savedpostmodel({user:userid,post:postid})
-            await savedPost.save()
-            if(savedPost){
-                res.status(200).send({message:"Post Saved Successfully",success:true})
+    export const savedPost = async (req, res) => {
+        try {
+            const { userid, postid } = req.params;
+            const post = await postmodel.findById({ _id: postid });
+    
+            if (!post) {
+                return res.status(200).send({ message: "Post Not Found", success: false });
+            } else {
+                // Check if the post is already saved by the user
+                const existingSave = await savedpostmodel.findOne({ user: userid, post: postid });
+    
+                if (existingSave) {
+                    // Post is already saved, so unsave it
+                    const data = await savedpostmodel.deleteOne({ user: userid, post: postid });
+                    if (data.deletedCount > 0) {
+                        return res.status(200).send({ message: "Post Unsaved", success: true });
+                    } else {
+                        return res.status(200).send({ message: "Could Not Perform The Action", success: false });
+                    }
+                } else {
+                    // Post is not saved, so save it
+                    const savedPost = new savedpostmodel({ user: userid, post: postid });
+                    await savedPost.save();
+    
+                    if (savedPost) {
+                        return res.status(200).send({ message: "Post Saved Successfully", success: true });
+                    } else {
+                        return res.status(200).send({ message: "Post Not Saved", success: false });
+                    }
+                }
             }
-            else{
-                res.status(200).send({message:"Post Not Saved",success:false})
-            }
+        } catch (error) {
+            console.error("Error in savedPost function:", error); // Logs the full error message
+            res.status(500).send({ message: "Something Went Wrong", success: false, error: error.message });
         }
-
-    }
-    catch(error){
-        res.status(500).send({message:"Something Went Wrong",success:false})
-    }
-}
+    };
+    
+    
 
 export const getSavedPost = async (req,res) =>{
     try{
@@ -164,6 +179,16 @@ export const getSavedPost = async (req,res) =>{
         else{
             res.status(200).send({message:"Could Not Fetch Data",success:false})
         }
+    }
+    catch(error){
+        res.status(500).send({message:"Something Went Wrong",success:false})
+    }
+}
+
+export const deleteSavedPost = async(req,res) =>{
+    try{
+        const {userid,postid} = req.params;
+        
     }
     catch(error){
         res.status(500).send({message:"Something Went Wrong",success:false})

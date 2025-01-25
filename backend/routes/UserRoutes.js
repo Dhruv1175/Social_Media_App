@@ -1,7 +1,7 @@
 import express from "express";
 import { verifyToken } from "../middleware/VerifyToken.js";
 import { getUserProfile, loginUser, registerUser, updateProfile } from "../controllers/UserController.js";
-import { createPost, deletePost, feed, getOnePost, getPost, getSavedPost, getUserPost, savedPost, updatePost } from "../controllers/PostController.js";
+import { createPost, deletePost, deleteSavedPost, feed, getOnePost, getPost, getSavedPost, getUserPost, savedPost, updatePost } from "../controllers/PostController.js";
 import { addComment, deleteComment, getComment, updateComment } from "../controllers/CommentController.js";
 import { toggleLikeComment, toggleLikePost } from "../controllers/LikeController.js";
 import { getFollow, getFollowing, toggleFollow } from "../controllers/FollowController.js";
