@@ -31,7 +31,7 @@ const Sidebar = () => {
     <aside style={{ width: '250px', backgroundColor: '#fff', borderRight: '1px solid #ddd', padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
         <Instagram size={32} />
-        <h1 style={{ fontSize: '20px', marginLeft: '10px' }}>Instagram</h1>
+        <h1 style={{ fontSize: '20px', marginLeft: '10px' }}>Rizzit</h1>
       </div>
       <nav>
         <div style={{ marginBottom: '15px' }}>

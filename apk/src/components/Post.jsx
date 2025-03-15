@@ -7,11 +7,10 @@ const Posts = ({ posts, user }) => {
 
   const toggleEditPost = (postId, currentText) => {
     if (editingPostId === postId) {
-      // Save changes
       console.log('Save post:', postId, editedPostText[postId]);
       setEditingPostId(null); // Exit edit mode
     } else {
-      // Enter edit mode
+
       setEditingPostId(postId);
       setEditedPostText((prev) => ({ ...prev, [postId]: currentText }));
     }
