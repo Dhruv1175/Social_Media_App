@@ -134,6 +134,7 @@ export const feed = async(req,res) => {
         try {
             const { userid, postid } = req.params;
             const post = await postmodel.findById({ _id: postid });
+            
     
             if (!post) {
                 return res.status(200).send({ message: "Post Not Found", success: false });
@@ -145,8 +146,9 @@ export const feed = async(req,res) => {
                     // Post is already saved, so unsave it
                     const data = await savedpostmodel.deleteOne({ user: userid, post: postid });
                     if (data.deletedCount > 0) {
-                        return res.status(200).send({ message: "Post Unsaved", success: true });
+                        return res.status(200).send({ message: "Post Unsaved", success: true ,isSaved:false});
                     } else {
+                        
                         return res.status(200).send({ message: "Could Not Perform The Action", success: false });
                     }
                 } else {
@@ -155,7 +157,7 @@ export const feed = async(req,res) => {
                     await savedPost.save();
     
                     if (savedPost) {
-                        return res.status(200).send({ message: "Post Saved Successfully", success: true });
+                        return res.status(200).send({ message: "Post Saved Successfully", success: true,isSaved:true });
                     } else {
                         return res.status(200).send({ message: "Post Not Saved", success: false });
                     }
