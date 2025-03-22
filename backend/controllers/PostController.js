@@ -130,7 +130,7 @@ export const feed = async(req,res) => {
     
     };
 
-    export const savedPost = async (req, res) => {
+export const savedPost = async (req, res) => {
         try {
             const { userid, postid } = req.params;
             const post = await postmodel.findById({ _id: postid });

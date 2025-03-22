@@ -45,7 +45,18 @@ const ProfilePage = () => {
 
         setUser(userResponse.data.exist);
         setPosts(postsResponse.data.data);
-        setSavedPosts(savedPostsResponse.data.data);
+        
+        // Transform saved posts to match the format expected by the Posts component
+        const transformedSavedPosts = savedPostsResponse.data.data.map(item => {
+          // If the saved post has a nested post object structure, extract it
+          if (item.post) {
+            return item.post;
+          }
+          return item; // Fallback in case structure is different
+        });
+        
+        setSavedPosts(transformedSavedPosts);
+        
         
         // Initialize form data with user data
         setFormData({
@@ -197,8 +208,8 @@ const ProfilePage = () => {
             SAVED
           </button>
         </div>
-        {activeTab === 'posts' && <Posts posts={posts} user={user} />}
-        {activeTab === 'saved' && <Posts posts={savedPosts} user={user} />}
+        {activeTab === 'posts' && <Posts posts={posts} user={user} isSavedPosts={false} />}
+        {activeTab === 'saved' && <Posts posts={savedPosts} user={user} isSavedPosts={true} />}
       </div>
 
       {/* Edit Profile Modal */}

@@ -9,7 +9,6 @@ const Posts = ({ posts: initialPosts, user }) => {
   const [editedPostText, setEditedPostText] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // If posts are provided via props, initialize state; otherwise, fetch them.
   useEffect(() => {
     if (initialPosts && initialPosts.length > 0) {
       const postsWithStatus = initialPosts.map(post => ({
@@ -29,19 +28,90 @@ const Posts = ({ posts: initialPosts, user }) => {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  // Fetch posts from backend.
+  // Fetch posts from backend with complete like information
   const fetchPosts = async () => {
     try {
-      const response = await axios.get('http://localhost:3080/api/getPosts', {
-        headers: authHeaders()
-      });
-      if (response.data.success) {
-        setPosts(response.data.posts);
+      const userId = user?._id || localStorage.getItem('userId');
+      if (!userId) {
+        console.error('User ID not found.');
+        return;
+      }
+
+      // Fetch both posts and like info in parallel
+      const [postsResponse, likesResponse] = await Promise.all([
+        axios.get('http://localhost:3080/api/getPosts', {
+          headers: authHeaders()
+        }),
+        axios.get(`http://localhost:3080/user/${userId}/likes`, {
+          headers: authHeaders()
+        })
+      ]);
+      
+      if (postsResponse.data.success) {
+        let postsData = postsResponse.data.posts;
+        
+        if (likesResponse?.data?.success) {
+          const likedPostIds = new Set(likesResponse.data.likedPosts.map(post => post._id));
+          
+          // Fetch the latest like counts for all posts
+          const likesCountsResponse = await axios.get('http://localhost:3080/api/posts/likeCounts', {
+            headers: authHeaders()
+          });
+          
+          if (likesCountsResponse?.data?.success) {
+            const likeCounts = likesCountsResponse.data.likeCounts || {};
+            
+            // Update posts with correct like status and counts
+            postsData = postsData.map(post => ({
+              ...post,
+              isLiked: likedPostIds.has(post._id),
+              likes: likeCounts[post._id] || post.likes || 0,
+              isSaved: Boolean(post.isSaved)
+            }));
+          } else {
+            // If we can't get like counts, still update like status
+            postsData = postsData.map(post => ({
+              ...post,
+              isLiked: likedPostIds.has(post._id),
+              isSaved: Boolean(post.isSaved)
+            }));
+          }
+        }
+        
+        setPosts(postsData);
+        
+        // Store the like counts in localStorage for backup
+        const likeCounts = {};
+        postsData.forEach(post => {
+          likeCounts[post._id] = post.likes || 0;
+        });
+        localStorage.setItem('postLikeCounts', JSON.stringify(likeCounts));
+        
       } else {
-        console.error('getPosts endpoint did not return success:', response.data);
+        console.error('getPosts endpoint did not return success:', postsResponse.data);
       }
     } catch (error) {
       console.error('Error fetching posts:', error);
+      
+      // If API fails, try to load from localStorage
+      try {
+        const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '{}');
+        const likeCounts = JSON.parse(localStorage.getItem('postLikeCounts') || '{}');
+        const savedPosts = JSON.parse(localStorage.getItem('savedPosts') || '{}');
+        
+        if (posts.length > 0) {
+          setPosts(prevPosts =>
+            prevPosts.map(post => ({
+              ...post,
+              isLiked: Boolean(likedPosts[post._id]),
+              likes: likeCounts[post._id] || post.likes || 0,
+              isSaved: Boolean(savedPosts[post._id])
+            }))
+          );
+        }
+      } catch (localStorageError) {
+        console.error('Error loading from localStorage:', localStorageError);
+      }
     }
   };
 
@@ -88,41 +158,69 @@ const Posts = ({ posts: initialPosts, user }) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Optimistic update: toggle like state and adjust likes count.
-    setPosts(prevPosts =>
-      prevPosts.map(post => {
-        if (post._id === postId) {
-          const newIsLiked = !post.isLiked;
-          const newLikes = newIsLiked ? (post.likes || 0) + 1 : (post.likes || 0) - 1;
-          return { ...post, isLiked: newIsLiked, likes: newLikes };
-        }
-        return post;
-      })
-    );
-
     const userId = user?._id || localStorage.getItem('userId');
     if (!userId) {
       console.error('User ID not found.');
       return;
     }
 
+    // Get current state before updating
+    const currentPost = posts.find(post => post._id === postId);
+    const currentIsLiked = currentPost?.isLiked || false;
+    const currentLikes = currentPost?.likes || 0;
+
+    // Optimistic update: toggle like state and adjust likes count.
+    setPosts(prevPosts =>
+      prevPosts.map(post => {
+        if (post._id === postId) {
+          const newIsLiked = !post.isLiked;
+          const newLikes = newIsLiked ? (post.likes || 0) + 1 : Math.max((post.likes || 0) - 1, 0);
+          return { ...post, isLiked: newIsLiked, likes: newLikes };
+        }
+        return post;
+      })
+    );
+
     const endpoint = `http://localhost:3080/user/${userId}/post/userpost/${postId}/like`;
     try {
       const response = await axios.post(endpoint, null, { headers: authHeaders() });
       console.log('Like toggle response:', response.data);
+      
       // Update UI with backend values.
       setPosts(prevPosts =>
         prevPosts.map(post => {
           if (post._id === postId) {
-            return { ...post, isLiked: response.data.isLiked, likes: response.data.likes };
+            return { 
+              ...post, 
+              isLiked: response.data.isLiked, 
+              likes: response.data.likes 
+            };
           }
           return post;
         })
       );
+      
+      // Store both like status AND count in localStorage
+      const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '{}');
+      likedPosts[postId] = response.data.isLiked;
+      localStorage.setItem('likedPosts', JSON.stringify(likedPosts));
+      
+      const likeCounts = JSON.parse(localStorage.getItem('postLikeCounts') || '{}');
+      likeCounts[postId] = response.data.likes;
+      localStorage.setItem('postLikeCounts', JSON.stringify(likeCounts));
+      
     } catch (error) {
       console.error('Error toggling like:', error);
-      // Optionally re-fetch posts to re-sync state.
-      fetchPosts();
+      
+      // Revert the optimistic update on error
+      setPosts(prevPosts =>
+        prevPosts.map(post => {
+          if (post._id === postId) {
+            return { ...post, isLiked: currentIsLiked, likes: currentLikes };
+          }
+          return post;
+        })
+      );
     }
   };
 
@@ -155,6 +253,7 @@ const Posts = ({ posts: initialPosts, user }) => {
     try {
       const response = await axios.post(endpoint, null, { headers: authHeaders() });
       console.log('Save toggle response:', response.data);
+      
       // Update UI with backend response
       setPosts(prevPosts =>
         prevPosts.map(post => {
@@ -164,6 +263,12 @@ const Posts = ({ posts: initialPosts, user }) => {
           return post;
         })
       );
+      
+      // Store saved status in localStorage as a backup
+      const savedPosts = JSON.parse(localStorage.getItem('savedPosts') || '{}');
+      savedPosts[postId] = response.data.isSaved;
+      localStorage.setItem('savedPosts', JSON.stringify(savedPosts));
+      
     } catch (error) {
       console.error('Error toggling save:', error);
       // Revert optimistic update on error.
@@ -174,6 +279,29 @@ const Posts = ({ posts: initialPosts, user }) => {
       );
     }
   };
+
+  // Initialize posts with localStorage backup data when component mounts
+  useEffect(() => {
+    // Only use localStorage if we have posts but need to restore state
+    if (posts.length > 0) {
+      try {
+        const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '{}');
+        const likeCounts = JSON.parse(localStorage.getItem('postLikeCounts') || '{}');
+        const savedPosts = JSON.parse(localStorage.getItem('savedPosts') || '{}');
+        
+        setPosts(prevPosts =>
+          prevPosts.map(post => ({
+            ...post,
+            isLiked: post.isLiked || Boolean(likedPosts[post._id]),
+            likes: post.likes || likeCounts[post._id] || 0,
+            isSaved: post.isSaved || Boolean(savedPosts[post._id])
+          }))
+        );
+      } catch (error) {
+        console.error('Error initializing from localStorage:', error);
+      }
+    }
+  }, [posts.length]);
 
   return (
     <div className="instagram-feed-grid">
