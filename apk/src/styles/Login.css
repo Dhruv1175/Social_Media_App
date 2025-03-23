@@ -129,3 +129,13 @@
     }
   }
   
+  .error-message {
+    color: #ed4956;
+    font-size: 14px;
+    margin-bottom: 12px;
+    text-align: center;
+    background-color: #fef0f0;
+    padding: 8px;
+    border-radius: 4px;
+  }
+  

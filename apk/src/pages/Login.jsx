@@ -4,6 +4,7 @@ import axios from 'axios';
 import logo from '../assets/logo.png'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import { useNavigate } from 'react-router-dom';
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -11,6 +12,9 @@ function Login() {
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -18,24 +22,38 @@ function Login() {
       ...formData,
       [name]: value,
     });
+    setError(""); // Clear error when user starts typing
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Login Data Submitted:", formData);
+    setLoading(true);
+    setError("");
     
     try {
       const response = await axios.post('http://localhost:3080/user/login', formData);
-      const {accesstoken,userId} = response.data;// Assuming the token is returned in the response
-      alert(response.data.message);
       
-      // Store the token in local storage or set it in the headers for future requests
-      localStorage.setItem('accessToken', accesstoken);
-      localStorage.setItem('userId', userId);
-      axios.defaults.headers['Authorization'] = `Bearer ${accesstoken}`; // Set token globally for axios requests
-      window.location.href = "/home"; // Modify this to your desired route
+      // Check if login was successful
+      if (response.data.success) {
+        const {accesstoken, userId} = response.data;
+        
+        // Store the token in local storage
+        localStorage.setItem('accessToken', accesstoken);
+        localStorage.setItem('userId', userId);
+        
+        // Set token for axios requests
+        axios.defaults.headers['Authorization'] = `Bearer ${accesstoken}`;
+        
+        // Navigate to home page
+        navigate("/home");
+      } else {
+        // If the login failed, show error message
+        setError(response.data.message || "Login failed. Please check your credentials.");
+      }
     } catch (error) {
-      alert(error.response?.data?.message || "Login failed. Please try again.");
+      setError(error.response?.data?.message || "Login failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,6 +66,7 @@ function Login() {
         <div className="login-box">
           <h1>Rizzit</h1>
           <form onSubmit={handleSubmit}>
+            {error && <div className="error-message">{error}</div>}
             <input
               type="email"
               name="email"
@@ -72,7 +91,9 @@ function Login() {
                 {showPassword ?<VisibilityIcon />  :<VisibilityOffIcon /> }
               </span>
             </div>
-            <button type="submit">Log In</button>
+            <button type="submit" disabled={loading}>
+              {loading ? "Logging in..." : "Log In"}
+            </button>
           </form>
           <div className="divider">
             <span>OR</span>

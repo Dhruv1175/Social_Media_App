@@ -24,39 +24,58 @@ const ProfilePage = () => {
       try {
         const userId = localStorage.getItem('userId');
         const token = localStorage.getItem('accessToken');
+        
+        if (!userId || !token) {
+          console.error('User ID or token not found');
+          setLoading(false);
+          return;
+        }
+
+        const authHeader = { Authorization: `Bearer ${token}` };
 
         // Fetch user profile
         const userResponse = await axios.get(
           `http://localhost:3080/user/profile/${userId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: authHeader }
         );
 
         // Fetch user posts
         const postsResponse = await axios.get(
           `http://localhost:3080/user/${userId}/post/userpost/get`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: authHeader }
         );
 
         // Fetch saved posts
         const savedPostsResponse = await axios.get(
           `http://localhost:3080/user/post/${userId}/saved`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: authHeader }
         );
+
+        console.log('Saved posts response:', savedPostsResponse.data);
 
         setUser(userResponse.data.exist);
         setPosts(postsResponse.data.data);
         
         // Transform saved posts to match the format expected by the Posts component
-        const transformedSavedPosts = savedPostsResponse.data.data.map(item => {
-          // If the saved post has a nested post object structure, extract it
-          if (item.post) {
-            return item.post;
-          }
-          return item; // Fallback in case structure is different
-        });
+        const transformedSavedPosts = savedPostsResponse.data.data
+          .filter(item => item.post) // Ensure post exists
+          .map(item => {
+            // Add isSaved flag to each saved post
+            const postData = {
+              ...item.post,
+              isSaved: true
+            };
+            
+            // If the post has a user reference but not populated, use current user
+            if (!postData.user || typeof postData.user === 'string') {
+              postData.user = userResponse.data.exist;
+            }
+            
+            return postData;
+          });
         
+        console.log('Transformed saved posts:', transformedSavedPosts);
         setSavedPosts(transformedSavedPosts);
-        
         
         // Initialize form data with user data
         setFormData({

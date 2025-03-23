@@ -1,89 +1,122 @@
 import React, { useEffect, useState } from 'react';
+import '../styles/Sidebar.css';
+import { Link, useLocation } from 'react-router-dom';
+import { Instagram, Home, Search, Compass, MessageCircle, Heart, PlusSquare, Menu, LogOut, User } from 'lucide-react';
 import axios from 'axios';
-import { Instagram, Home, Search, Compass, MessageCircle, Heart, PlusSquare, Settings } from 'lucide-react';
-import { Link } from 'react-router-dom'; // Import Link for routing
 
-const Sidebar = () => {
-  const [user, setUser] = useState(null);
+const Sidebar = ({ user: propUser }) => {
+  const [user, setUser] = useState(propUser || null);
+  const location = useLocation();
 
   useEffect(() => {
+    // If user is provided as a prop, use that
+    if (propUser) {
+      setUser(propUser);
+      return;
+    }
+
+    // Otherwise fetch user data
     const fetchUserData = async () => {
       try {
+        const userId = localStorage.getItem('userId');
+        const token = localStorage.getItem('accessToken');
+        
+        if (!userId || !token) {
+          console.error('User ID or token not found');
+          return;
+        }
+
         const response = await axios.get(
-          `http://localhost:3080/user/profile/${localStorage.getItem('userId')}`,
+          `http://localhost:3080/user/profile/${userId}`,
           {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('accessToken')}`, // Use appropriate auth method
+              Authorization: `Bearer ${token}`,
             },
           }
         );
 
-        setUser(response.data.exist); // Ensure 'exist' has the correct structure for user data
+        setUser(response.data.exist);
       } catch (error) {
         console.error('Failed to fetch user data:', error);
       }
     };
 
     fetchUserData();
-  }, []);
+  }, [propUser]);
+
+  const handleLogout = () => {
+    // Clear local storage
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('userId');
+    
+    // Redirect to login
+    window.location.href = '/';
+  };
+
+  const isActive = (path) => {
+    return location.pathname === path;
+  };
 
   return (
-    <aside style={{ width: '250px', backgroundColor: '#fff', borderRight: '1px solid #ddd', padding: '20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-        <Instagram size={32} />
-        <h1 style={{ fontSize: '20px', marginLeft: '10px' }}>Rizzit</h1>
+    <div className="sidebar">
+      <div className="sidebar-logo">
+        <Instagram className="logo-icon" />
+        <span className="logo-text">Rizzit</span>
       </div>
-      <nav>
-        <div style={{ marginBottom: '15px' }}>
-          <Link to="/home" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center' }}>
-            <Home size={20} /> Home
-          </Link>
-        </div>
-        <div style={{ marginBottom: '15px' }}>
-          <Search size={20} /> Search
-        </div>
-        <div style={{ marginBottom: '15px' }}>
-          <Compass size={20} /> Explore
-        </div>
-        <div style={{ marginBottom: '15px' }}>
-          <MessageCircle size={20} /> Messages
-        </div>
-        <div style={{ marginBottom: '15px' }}>
-          <Heart size={20} /> Notifications
-        </div>
-        <div style={{ marginBottom: '15px' }}>
-          <PlusSquare size={20} /> Create
-        </div>
-        <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
-          <Link 
-            to="/profile" 
-            style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center' }}
-          >
-            {user ? (
-              <>
-                <img
-                  src={user.avatar || 'default-avatar.png'}
-                  alt="Profile"
-                  style={{
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
-                    marginRight: '10px',
-                    objectFit: 'cover',
-                  }}
-                />
-                <span>{user.username || 'Profile'}</span>
-              </>
-            ) : (
-              <span>Loading...</span>
-            )}
-          </Link>
-        </div>
+      
+      <nav className="sidebar-nav">
+        <Link to="/home" className={`nav-item ${isActive('/home') ? 'active' : ''}`}>
+          <Home className="nav-icon" />
+          <span className="nav-text">Home</span>
+        </Link>
+        
+        <Link to="#" className="nav-item">
+          <Search className="nav-icon" />
+          <span className="nav-text">Search</span>
+        </Link>
+        
+        <Link to="#" className="nav-item">
+          <Compass className="nav-icon" />
+          <span className="nav-text">Explore</span>
+        </Link>
+        
+        <Link to="/messages" className={`nav-item ${isActive('/messages') ? 'active' : ''}`}>
+          <MessageCircle className="nav-icon" />
+          <span className="nav-text">Messages</span>
+        </Link>
+        
+        <Link to="#" className="nav-item">
+          <Heart className="nav-icon" />
+          <span className="nav-text">Notifications</span>
+        </Link>
+        
+        <Link to="#" className="nav-item">
+          <PlusSquare className="nav-icon" />
+          <span className="nav-text">Create</span>
+        </Link>
+        
+        <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
+          {user && user.avatar ? (
+            <img src={user.avatar} alt="Profile" className="nav-icon profile-pic" style={{ width: '24px', height: '24px' }} />
+          ) : (
+            <User className="nav-icon" size={24} />
+          )}
+          <span className="nav-text">{user?.name || 'Profile'}</span>
+        </Link>
       </nav>
-      <div style={{ marginTop: 'auto' }}>
-        <Settings size={20} /> Settings
+      
+      <div className="sidebar-footer">
+        <Link to="#" className="nav-item" onClick={handleLogout}>
+          <LogOut className="nav-icon" />
+          <span className="nav-text">Logout</span>
+        </Link>
+        
+        <Link to="#" className="nav-item">
+          <Menu className="nav-icon" />
+          <span className="nav-text">More</span>
+        </Link>
       </div>
-    </aside>
+    </div>
   );
 };
 

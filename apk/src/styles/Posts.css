@@ -207,3 +207,350 @@
     color: #8e8e8e;
     font-size: 14px;
   }
+
+.instagram-feed-grid {
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.instagram-post {
+  border: 1px solid #dbdbdb;
+  border-radius: 8px;
+  background-color: white;
+  overflow: hidden;
+}
+
+/* Post Header */
+.post-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #efefef;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar-container {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.user-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.username {
+  font-weight: 600;
+  color: #262626;
+  font-size: 14px;
+}
+
+.location {
+  color: #8e8e8e;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.post-actions-top {
+  position: relative;
+}
+
+.more-options {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #262626;
+}
+
+.edit-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #262626;
+  margin-right: 8px;
+}
+
+/* Options Dropdown */
+.post-options-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+  width: 150px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.option-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  color: #262626;
+  transition: background-color 0.2s;
+}
+
+.option-button:hover {
+  background-color: #f9f9f9;
+}
+
+.delete-option {
+  color: #ed4956;
+}
+
+.delete-option:hover {
+  background-color: #fff8f8;
+}
+
+/* Delete Confirmation Dialog */
+.delete-confirm-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  padding: 24px;
+  z-index: 100;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.delete-confirm-dialog h4 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.delete-confirm-dialog p {
+  margin: 0 0 24px;
+  color: #8e8e8e;
+  font-size: 14px;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.cancel-button {
+  padding: 8px 16px;
+  background: none;
+  border: 1px solid #dbdbdb;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.delete-button {
+  padding: 8px 16px;
+  background-color: #ed4956;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.delete-button:hover:not(:disabled) {
+  background-color: #c4293a;
+}
+
+.delete-button:disabled,
+.cancel-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Post Media */
+.post-media-container {
+  position: relative;
+  width: 100%;
+  max-height: 600px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fafafa;
+}
+
+.post-image {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  max-height: 600px;
+  vertical-align: middle;
+}
+
+.post-video {
+  width: 100%;
+  max-height: 600px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+/* Post Actions */
+.post-actions {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 16px;
+}
+
+.left-actions {
+  display: flex;
+  gap: 16px;
+}
+
+.action-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #262626;
+}
+
+.likes-count {
+  padding: 0 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #262626;
+}
+
+.post-caption {
+  padding: 0 16px;
+  margin-bottom: 8px;
+}
+
+.caption-text {
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.caption-content {
+  margin-left: 6px;
+  color: #262626;
+}
+
+.caption-edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.caption-editor {
+  width: 100%;
+  border: 1px solid #dbdbdb;
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 14px;
+  resize: none;
+  font-family: inherit;
+}
+
+.caption-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cancel-edit-button {
+  padding: 6px 12px;
+  background: none;
+  border: 1px solid #dbdbdb;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.save-edit-button {
+  padding: 6px 12px;
+  background-color: #0095f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.save-edit-button:hover:not(:disabled) {
+  background-color: #0085e0;
+}
+
+.save-edit-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.view-comments {
+  padding: 0 16px;
+  margin-bottom: 8px;
+}
+
+.comments-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #8e8e8e;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.post-date {
+  padding: 0 16px 16px;
+  color: #8e8e8e;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.no-posts {
+  text-align: center;
+  padding: 40px 0;
+  color: #8e8e8e;
+  font-size: 16px;
+}

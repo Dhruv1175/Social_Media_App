@@ -13,6 +13,11 @@ const likestruct = mongoose.Schema({
         type:mongoose.Schema.Types.ObjectId,
         ref:'Comment'
     },
+    type:{
+        type:String,
+        enum: ['post', 'comment'],
+        default: 'post'
+    },
     date:{
         type:Date,
         default:Date.now

@@ -4,6 +4,7 @@ import {BrowserRouter,Routes,Route} from 'react-router-dom'
 import Login from './Login';
 import Home1 from './Home';
 import ProfilePage from './ProfilePage';
+import MessagingPage from './MessagingPage';
 
 
 export default function Main() {
@@ -15,6 +16,7 @@ export default function Main() {
             <Route path={"/"} element={<Login/>} />
             <Route path={"/home"} element={<Home1/>} />
             <Route path={"/profile"} element={<ProfilePage/>} />
+            <Route path={"/messages"} element={<MessagingPage/>} />
         </Routes>
         </BrowserRouter>
     </div>

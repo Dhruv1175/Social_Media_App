@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, Edit, Check, MoreHorizontal } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Edit, Check, MoreHorizontal, Trash2, X } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Posts.css';
 
@@ -8,6 +8,8 @@ const Posts = ({ posts: initialPosts, user }) => {
   const [editingPostId, setEditingPostId] = useState(null);
   const [editedPostText, setEditedPostText] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showOptions, setShowOptions] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
   useEffect(() => {
     if (initialPosts && initialPosts.length > 0) {
@@ -115,7 +117,18 @@ const Posts = ({ posts: initialPosts, user }) => {
     }
   };
 
+  const togglePostOptions = (postId) => {
+    if (showOptions === postId) {
+      setShowOptions(null);
+    } else {
+      setShowOptions(postId);
+      setShowDeleteConfirm(null); // Close any open delete confirmation
+    }
+  };
+
   const toggleEditPost = (postId, currentText) => {
+    setShowOptions(null); // Close options menu
+    
     if (editingPostId === postId) {
       handleSavePost(postId);
     } else {
@@ -148,6 +161,33 @@ const Posts = ({ posts: initialPosts, user }) => {
       console.log('Post saved:', response.data);
     } catch (error) {
       console.error('Error saving post:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Toggle delete confirmation dialog
+  const toggleDeleteConfirm = (postId) => {
+    setShowOptions(null); // Close options menu
+    setShowDeleteConfirm(showDeleteConfirm === postId ? null : postId);
+  };
+
+  // Delete post
+  const handleDeletePost = async (postId) => {
+    try {
+      setIsSubmitting(true);
+      const response = await axios.delete(
+        `http://localhost:3080/api/post/${postId}`,
+        { headers: authHeaders() }
+      );
+      
+      if (response.status === 200) {
+        // Remove the post from state
+        setPosts(prevPosts => prevPosts.filter(post => post._id !== postId));
+        setShowDeleteConfirm(null);
+      }
+    } catch (error) {
+      console.error('Error deleting post:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -280,6 +320,17 @@ const Posts = ({ posts: initialPosts, user }) => {
     }
   };
 
+  // Close any open menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowOptions(null);
+      setShowDeleteConfirm(null);
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
   // Initialize posts with localStorage backup data when component mounts
   useEffect(() => {
     // Only use localStorage if we have posts but need to restore state
@@ -323,30 +374,85 @@ const Posts = ({ posts: initialPosts, user }) => {
                   {post.location && <span className="location">{post.location}</span>}
                 </div>
               </div>
-              <div className="post-actions-top">
-                {post.user?._id === user?._id && (
+              {post.user?._id === user?._id && (
+                <div className="post-actions-top">
                   <button
-                    onClick={() => toggleEditPost(post._id, post.text)}
-                    className="edit-button"
-                    disabled={isSubmitting}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePostOptions(post._id);
+                    }}
+                    className="more-options"
                     type="button"
                   >
-                    {editingPostId === post._id ? <Check size={18} /> : <Edit size={18} />}
+                    <MoreHorizontal size={20} />
                   </button>
-                )}
-                <button className="more-options" type="button">
-                  <MoreHorizontal size={20} />
-                </button>
-              </div>
+                  
+                  {/* Options dropdown */}
+                  {showOptions === post._id && (
+                    <div className="post-options-dropdown" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={() => toggleEditPost(post._id, post.text)}
+                        className="option-button"
+                        disabled={isSubmitting}
+                      >
+                        <Edit size={16} />
+                        <span>Edit</span>
+                      </button>
+                      <button 
+                        onClick={() => toggleDeleteConfirm(post._id)}
+                        className="option-button delete-option"
+                        disabled={isSubmitting}
+                      >
+                        <Trash2 size={16} />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </header>
 
-            {/* Post Image */}
+            {/* Delete confirmation dialog */}
+            {showDeleteConfirm === post._id && (
+              <div className="delete-confirm-dialog" onClick={(e) => e.stopPropagation()}>
+                <h4>Delete Post?</h4>
+                <p>Are you sure you want to delete this post?</p>
+                <div className="delete-confirm-actions">
+                  <button 
+                    onClick={() => setShowDeleteConfirm(null)}
+                    className="cancel-button"
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => handleDeletePost(post._id)}
+                    className="delete-button"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Post Media - Support both image and video */}
             {post.image && (
-              <div className="post-image-container">
+              <div className="post-media-container">
                 <img
                   src={post.image}
                   alt="Post"
                   className="post-image"
+                />
+              </div>
+            )}
+            
+            {post.video && (
+              <div className="post-media-container">
+                <video 
+                  src={post.video}
+                  controls
+                  className="post-video"
                 />
               </div>
             )}
@@ -394,13 +500,31 @@ const Posts = ({ posts: initialPosts, user }) => {
             {/* Caption/Text */}
             <div className="post-caption">
               {editingPostId === post._id ? (
-                <textarea
-                  value={editedPostText[post._id] || ''}
-                  onChange={(e) => handleTextChange(post._id, e.target.value)}
-                  className="caption-editor"
-                  rows={2}
-                  disabled={isSubmitting}
-                />
+                <div className="caption-edit-container">
+                  <textarea
+                    value={editedPostText[post._id] || ''}
+                    onChange={(e) => handleTextChange(post._id, e.target.value)}
+                    className="caption-editor"
+                    rows={2}
+                    disabled={isSubmitting}
+                  />
+                  <div className="caption-edit-actions">
+                    <button 
+                      onClick={() => setEditingPostId(null)} 
+                      className="cancel-edit-button"
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={() => handleSavePost(post._id)} 
+                      className="save-edit-button"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="caption-text">
                   <span className="username">{post.user?.name || user?.name || 'User'}</span>

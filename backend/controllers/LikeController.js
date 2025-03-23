@@ -6,73 +6,84 @@ import postmodel from "../models/PostModel.js";
 
 export const toggleLikePost = async (req, res) => {
     try {
-      const { userid, postid } = req.params;
-      const postExists = await postmodel.findOne({ _id: postid });
-      if (!postExists) {
-        return res.status(404).send({ message: "Post Not Found", success: false });
-      }
-  
-      const likeExists = await likemodel.findOne({ user: userid, post: postid });
-  
-      if (!likeExists) {
-        // Create a new like record
-        const likedata = new likemodel({ user: userid, post: postid });
-        await likedata.save();
-        // Optionally, create a notification record
-        const notification = new notificationmodel({
-          user: postExists.user,
-          type: 'like',
-          post: postid,
-          fromUser: userid
-        });
-        await notification.save();
-  
-        // Count the updated number of likes
-        const likesCount = await likemodel.countDocuments({ post: postid });
-        return res.status(200).send({ 
-          isLiked: true, 
-          success: true, 
-          message: "Post liked", 
-          likes: likesCount 
-        });
-      } else {
-        // Remove the like record if it already exists
-        await likemodel.findOneAndDelete({ user: userid, post: postid });
-        const likesCount = await likemodel.countDocuments({ post: postid });
-        return res.status(200).send({ 
-          isLiked: false, 
-          success: true, 
-          message: "Like removed", 
-          likes: likesCount 
-        });
-      }
-    } catch (error) {
-      console.error("Error toggling like:", error);
-      res.status(500).send({ message: "Something Went Wrong", success: false });
-    }
-  };
-  
-export const toggleLikeComment = async (req,res) => {
-    try {
-        const { userid, postid , commentid } = req.params;
-        const commentExists = await commentmodel.findOne({ _id: commentid });
-        if (!commentExists) {
-            return res.status(404).send({ message: "Comment Not Found", success: false });
-        }
+        const { userid, postid } = req.params;
+        const existingLike = await likemodel.findOne({ user: userid, post: postid });
 
-        const likeExists = await likemodel.findOne({ user: userid, post: postid , comment:commentid });
+        let isLiked = false;
+        let likes = 0;
 
-        if (!likeExists) {
-            const likedata = new likemodel({ user: userid, post: postid ,comment:commentid});
-            await likedata.save();
-            const notification = new notificationmodel({user:commentExists.user,type:'like',post:postid || null ,fromUser:userid})
-                await notification.save()
-            return res.status(200).send({ isLiked: true, success: true, message: "Comment liked" });
+        if (existingLike) {
+            // If the like exists, remove it (unlike)
+            await likemodel.deleteOne({ _id: existingLike._id });
         } else {
-            await likemodel.findOneAndDelete({ user: userid, post: postid ,comment:commentid });
-            return res.status(200).send({ isLiked: false, success: true, message: "Like removed" });
+            // If no like exists, create one (like)
+            const newLike = new likemodel({ user: userid, post: postid, type: 'post' });
+            await newLike.save();
+            isLiked = true;
+        }
+
+        // Count total likes for this post
+        likes = await likemodel.countDocuments({ post: postid });
+
+        res.status(200).send({
+            message: isLiked ? "Post liked" : "Post unliked",
+            success: true,
+            isLiked,
+            likes
+        });
+    } catch (error) {
+        console.error("Error toggling like:", error);
+        res.status(500).send({ message: "Something went wrong", success: false });
+    }
+};
+
+export const toggleLikeComment = async (req, res) => {
+    try {
+        const { userid, commentid } = req.params;
+        const like = await likemodel.findOne({ user: userid, comment: commentid });
+
+        if (like) {
+            // Unlike
+            await likemodel.deleteOne({ _id: like._id });
+            res.status(200).send({ message: "Comment unliked", success: true });
+        } else {
+            // Like
+            const newLike = new likemodel({ user: userid, comment: commentid, type: 'comment' });
+            await newLike.save();
+            res.status(200).send({ message: "Comment liked", success: true });
         }
     } catch (error) {
-        res.status(500).send({ message: "Something Went Wrong", success: false });
+        console.error("Error toggling comment like:", error);
+        res.status(500).send({ message: "Something went wrong", success: false });
+    }
+};
+
+export const getUserLikes = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        // Find all post likes for this user
+        const likes = await likemodel.find({
+            user: userId,
+            post: { $exists: true, $ne: null },
+            $or: [
+                { type: 'post' },
+                { type: { $exists: false } }
+            ]
+        }).populate('post');
+        
+        // Extract just the posts from the likes
+        const likedPosts = likes.map(like => like.post);
+        
+        res.status(200).send({
+            success: true,
+            likedPosts
+        });
+    } catch (error) {
+        console.error('Error getting user likes:', error);
+        res.status(500).send({
+            success: false,
+            message: 'Something went wrong while retrieving user likes'
+        });
     }
 };

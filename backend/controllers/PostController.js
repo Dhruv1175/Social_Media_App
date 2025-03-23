@@ -2,6 +2,7 @@ import postmodel from "../models/PostModel.js"
 import usermodel from "../models/UserModel.js"
 import followermodel from "../models/FollowModel.js"
 import savedpostmodel from "../models/SavedPostModel.js"
+import likemodel from "../models/LikeModel.js"
 
 export const createPost = async(req,res)=>{
     try{
@@ -21,19 +22,19 @@ export const createPost = async(req,res)=>{
     }
 }
 
-export const getPost = async(req,res)=>{
+export const getAllPost = async(req,res)=>{
     try{
-    const data = await postmodel.find()
-    if(data){
-        res.status(200).send({data,success:true})
+        const posts = await postmodel.find().sort({date: -1}).populate("user","name avatar")
+        if(posts){
+            res.status(200).send({posts:posts, success:true})
+        }
+        else{
+            res.status(200).send({message:"Could not Fetch Posts", success:false})
+        }
     }
-    else{
-        res.status(200).send({message:"Could Not Fetch Data",success:false})
+    catch(error){
+        res.status(200).send({message:"Something Went Wrong",success:false})
     }
-}
-catch(error){
-    res.status(500).send({message:"Something Went Wrong",success:false})
-}
 }
 
 export const getUserPost = async(req,res)=>{
@@ -69,36 +70,60 @@ catch(error){
 export const updatePost = async(req,res) => {
     try{
         const {postid} = req.params;
-        const {text,video,images} = req.body
+        const {text,video,image} = req.body
         const updateFields = {};
 
-        if (text) updateFields.text = text;
-        if (video) updateFields.video = video;
-        if (images) updateFields.images = images;
-        const updatedetails  = await postmodel.findByIdAndUpdate(postid,{$set:updateFields},{new:true})
+        if (text !== undefined) updateFields.text = text;
+        if (video !== undefined) updateFields.video = video;
+        if (image !== undefined) updateFields.image = image;
+        
+        const updatedetails = await postmodel.findByIdAndUpdate(
+            postid,
+            {$set:updateFields},
+            {new:true}
+        );
+        
         if(updatedetails){
-            res.status(200).send({message:"Update Successful",success:true})
+            res.status(200).send({
+                message:"Post updated successfully",
+                success:true,
+                post: updatedetails
+            })
         }
         else{
-            res.status(200).send({message:"Could Not Perform The Actions",success:false})
+            res.status(404).send({message:"Post not found",success:false})
         }
     }
     catch(error){
-        res.status(500).send({message:"Something Went Wrong",success:false})
+        console.error("Error updating post:", error);
+        res.status(500).send({message:"Something went wrong",success:false})
     }
 }
 
 export const deletePost = async(req,res) => {
-    try{
+    try {
         const {postid} = req.params;
-        const deldata = await postmodel.findByIdAndDelete({_id:postid})
-        if(deldata){
-            res.status(200).send({message:"Data Deleted!!",success:true})
+        
+        // Check if post exists
+        const post = await postmodel.findById(postid);
+        if (!post) {
+            return res.status(404).send({message:"Post not found",success:false});
         }
-        else res.status(200).send({message:"Could Not Perform The Action",success:false})
-    }
-    catch(error){
-        res.status(500).send({message:"Something Went Wrong",success:false})
+        
+        // Delete post
+        await postmodel.findByIdAndDelete(postid);
+        
+        // Delete all saved instances of this post
+        await savedpostmodel.deleteMany({post: postid});
+        
+        // Return success
+        res.status(200).send({
+            message:"Post deleted successfully",
+            success:true
+        });
+    } catch(error) {
+        console.error("Error deleting post:", error);
+        res.status(500).send({message:"Something went wrong",success:false});
     }
 }
 
@@ -187,12 +212,61 @@ export const getSavedPost = async (req,res) =>{
     }
 }
 
-export const deleteSavedPost = async(req,res) =>{
+export const deleteSavedPost = async(req,res) => {
     try{
-        const {userid,postid} = req.params;
+        const {userid, postid} = req.params;
+        const savedPost = await savedpostmodel.findOne({ user: userid, post: postid });
         
+        if (!savedPost) {
+            return res.status(404).send({
+                message: "Saved post not found",
+                success: false
+            });
+        }
+        
+        await savedpostmodel.deleteOne({ _id: savedPost._id });
+        
+        res.status(200).send({
+            message: "Saved post deleted successfully",
+            success: true
+        });
     }
     catch(error){
-        res.status(500).send({message:"Something Went Wrong",success:false})
+        console.error("Error deleting saved post:", error);
+        res.status(500).send({message:"Something went wrong", success:false});
     }
 }
+
+export const getLikeCounts = async (req, res) => {
+    try {
+        // Get all likes from the database that are for posts
+        // We need to handle both cases: with type field and without
+        const likes = await likemodel.find({
+            post: { $exists: true, $ne: null },
+            $or: [
+                { type: 'post' },
+                { type: { $exists: false } } // Include likes without type field
+            ]
+        });
+        
+        // Group likes by post ID and count them
+        const likeCounts = {};
+        likes.forEach(like => {
+            if (!likeCounts[like.post]) {
+                likeCounts[like.post] = 0;
+            }
+            likeCounts[like.post]++;
+        });
+        
+        res.status(200).send({
+            success: true,
+            likeCounts
+        });
+    } catch (error) {
+        console.error('Error getting like counts:', error);
+        res.status(500).send({
+            success: false,
+            message: 'Something went wrong while retrieving like counts'
+        });
+    }
+};
