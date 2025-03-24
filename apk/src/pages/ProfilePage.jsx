@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/Sidebar';
-import Posts from '../components/Post';
 import axios from 'axios';
-import { Settings, Grid, Bookmark, X, Upload } from 'lucide-react';
+import { Settings, Grid, Bookmark, X, Upload, Heart, MessageCircle, Image, Edit, Trash2, MoreHorizontal } from 'lucide-react';
 import '../styles/ProfilePage.css';
+import { useParams, Link } from 'react-router-dom';
 
 const ProfilePage = () => {
   const [user, setUser] = useState(null);
@@ -12,6 +12,12 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('posts');
   const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [showPostOptions, setShowPostOptions] = useState(false);
+  const [editPostMode, setEditPostMode] = useState(false);
+  const [editedCaption, setEditedCaption] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     bio: '',
@@ -51,31 +57,24 @@ const ProfilePage = () => {
           { headers: authHeader }
         );
 
-        console.log('Saved posts response:', savedPostsResponse.data);
-
         setUser(userResponse.data.exist);
-        setPosts(postsResponse.data.data);
+        setPosts(postsResponse.data.data || []);
         
-        // Transform saved posts to match the format expected by the Posts component
-        const transformedSavedPosts = savedPostsResponse.data.data
-          .filter(item => item.post) // Ensure post exists
-          .map(item => {
-            // Add isSaved flag to each saved post
-            const postData = {
+        // Transform saved posts - ensure we're handling the data structure correctly
+        if (savedPostsResponse.data && savedPostsResponse.data.data) {
+          const transformedSavedPosts = savedPostsResponse.data.data
+            .filter(item => item.post) // Ensure post exists
+            .map(item => ({
               ...item.post,
-              isSaved: true
-            };
-            
-            // If the post has a user reference but not populated, use current user
-            if (!postData.user || typeof postData.user === 'string') {
-              postData.user = userResponse.data.exist;
-            }
-            
-            return postData;
-          });
+              isSaved: true,
+              // Ensure user data is available
+              user: item.post.user || userResponse.data.exist
+            }));
         
-        console.log('Transformed saved posts:', transformedSavedPosts);
         setSavedPosts(transformedSavedPosts);
+        } else {
+          setSavedPosts([]);
+        }
         
         // Initialize form data with user data
         setFormData({
@@ -152,8 +151,6 @@ const ProfilePage = () => {
 
       // Check if response is successful
       if (response.data && response.status === 200) {
-        console.log('Profile updated successfully:', response.data);
-        
         // Update local user state
         setUser({
           ...user,
@@ -167,14 +164,168 @@ const ProfilePage = () => {
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      // You might want to show an error message to the user here
     }
+  };
+
+  // Open a specific post
+  const handleOpenPost = (post) => {
+    setSelectedPost(post);
+    setShowPostModal(true);
+    setEditPostMode(false);
+    setEditedCaption(post.caption || '');
+    setShowPostOptions(false);
+    setShowDeleteConfirm(false);
+  };
+
+  // Close post modal
+  const handleClosePostModal = () => {
+    setShowPostModal(false);
+    setSelectedPost(null);
+  };
+
+  // Toggle post options menu
+  const togglePostOptions = () => {
+    setShowPostOptions(!showPostOptions);
+  };
+
+  // Toggle edit post mode
+  const toggleEditMode = () => {
+    setEditPostMode(!editPostMode);
+    setShowPostOptions(false);
+  };
+
+  // Handle caption change
+  const handleCaptionChange = (e) => {
+    setEditedCaption(e.target.value);
+  };
+
+  // Save edited post
+  const handleSavePost = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      
+      const response = await axios.patch(
+        `http://localhost:3080/user/post/${selectedPost._id}/update`,
+        { caption: editedCaption },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      if (response.data && response.status === 200) {
+        // Update the post in local state
+        const updatedPost = { ...selectedPost, caption: editedCaption };
+        setSelectedPost(updatedPost);
+        
+        // Update in posts array
+        const postArray = activeTab === 'posts' ? posts : savedPosts;
+        const updatedPosts = postArray.map(post => 
+          post._id === selectedPost._id ? updatedPost : post
+        );
+        
+        if (activeTab === 'posts') {
+          setPosts(updatedPosts);
+        } else {
+          setSavedPosts(updatedPosts);
+        }
+        
+        setEditPostMode(false);
+      }
+    } catch (error) {
+      console.error('Error updating post:', error);
+    }
+  };
+
+  // Toggle delete confirmation
+  const toggleDeleteConfirm = () => {
+    setShowDeleteConfirm(!showDeleteConfirm);
+    setShowPostOptions(false);
+  };
+
+  // Delete post
+  const handleDeletePost = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      
+      const response = await axios.delete(
+        `http://localhost:3080/user/post/${selectedPost._id}/delete`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      if (response.data && response.status === 200) {
+        // Remove post from local state
+        const updatedPosts = posts.filter(post => post._id !== selectedPost._id);
+        setPosts(updatedPosts);
+        
+        // Close modal
+        setShowPostModal(false);
+        setSelectedPost(null);
+      }
+    } catch (error) {
+      console.error('Error deleting post:', error);
+    }
+  };
+
+  // Check if post is owned by logged in user
+  const isOwnPost = (post) => {
+    const userId = localStorage.getItem('userId');
+    return post?.user?._id === userId || post?.userId === userId;
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+  };
+
+  // Render post grid items
+  const renderPostsGrid = (postsToDisplay) => {
+    if (!postsToDisplay || postsToDisplay.length === 0) {
+      return (
+        <div className="no-posts">
+          <div className="no-posts-icon">
+            <Image size={48} />
+          </div>
+          <h3>{activeTab === 'posts' ? 'No Posts Yet' : 'No Saved Posts'}</h3>
+          <p>{activeTab === 'posts' ? 'Share your first moment!' : 'Save posts to see them here'}</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="posts-grid">
+        {postsToDisplay.map((post) => (
+          <div 
+            key={post._id} 
+            className="post-grid-item"
+            onClick={() => handleOpenPost(post)}
+          >
+            <img 
+              src={post.image} 
+              alt={post.caption || 'Post'} 
+              className="grid-post-image" 
+            />
+            <div className="post-overlay">
+              <div className="post-interactions">
+                <span>
+                  <Heart size={20} className="interaction-icon" /> 
+                  {post.likes?.length || 0}
+                </span>
+                <span>
+                  <MessageCircle size={20} className="interaction-icon" /> 
+                  {post.comments?.length || 0}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   if (loading) {
     return (
       <div className="loading-container">
-        <p>Loading...</p>
+        <div className="loading-spinner"></div>
       </div>
     );
   }
@@ -182,6 +333,9 @@ const ProfilePage = () => {
   return (
     <div className="profile-page">
       <Sidebar user={user} />
+      
+      <div className="profile-content">
+        <div className="profile-section">
       <div className="profile-main">
         <div className="profile-header">
           <div className="profile-pic-container">
@@ -227,8 +381,13 @@ const ProfilePage = () => {
             SAVED
           </button>
         </div>
-        {activeTab === 'posts' && <Posts posts={posts} user={user} isSavedPosts={false} />}
-        {activeTab === 'saved' && <Posts posts={savedPosts} user={user} isSavedPosts={true} />}
+                
+            <div className="posts-container">
+              {activeTab === 'posts' && renderPostsGrid(posts)}
+              {activeTab === 'saved' && renderPostsGrid(savedPosts)}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Edit Profile Modal */}
@@ -290,6 +449,126 @@ const ProfilePage = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Single Post Modal */}
+      {showPostModal && selectedPost && (
+        <div className="modal-overlay" onClick={handleClosePostModal}>
+          <div className="post-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="post-modal-content">
+              <div className="post-modal-image">
+                <img 
+                  src={selectedPost.image} 
+                  alt={selectedPost.caption || 'Post'} 
+                />
+              </div>
+              <div className="post-modal-details">
+                <div className="post-modal-header">
+                  <div className="post-user-info">
+                    <img 
+                      src={selectedPost.user?.avatar || user?.avatar || 'https://via.placeholder.com/40'} 
+                      alt="User" 
+                      className="post-user-avatar" 
+                    />
+                    <span className="post-username">{selectedPost.user?.name || user?.name || 'User'}</span>
+                  </div>
+                  
+                  {isOwnPost(selectedPost) && (
+                    <div className="post-options-container">
+                      <button className="post-options-button" onClick={togglePostOptions}>
+                        <MoreHorizontal size={20} />
+                      </button>
+                      
+                      {showPostOptions && (
+                        <div className="post-options-menu">
+                          <button onClick={toggleEditMode}>
+                            <Edit size={16} /> Edit
+                          </button>
+                          <button onClick={toggleDeleteConfirm} className="delete-option">
+                            <Trash2 size={16} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="post-modal-caption">
+                  {editPostMode ? (
+                    <div className="edit-caption-container">
+                      <textarea
+                        value={editedCaption}
+                        onChange={handleCaptionChange}
+                        placeholder="Write a caption..."
+                        rows="3"
+                      />
+                      <div className="edit-caption-actions">
+                        <button onClick={() => setEditPostMode(false)}>Cancel</button>
+                        <button onClick={handleSavePost}>Save</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p>{selectedPost.caption}</p>
+                  )}
+                </div>
+                
+                <div className="post-modal-interactions">
+                  <div className="post-action-buttons">
+                    <button className="post-action-button">
+                      <Heart size={24} />
+                    </button>
+                    <button className="post-action-button">
+                      <MessageCircle size={24} />
+                    </button>
+                  </div>
+                  <div className="post-likes">
+                    <strong>{selectedPost.likes?.length || 0} likes</strong>
+                  </div>
+                  <div className="post-date">
+                    {formatDate(selectedPost.createdAt)}
+                  </div>
+                </div>
+                
+                <div className="post-comments-section">
+                  <div className="post-comments-container">
+                    {/* Comment section would go here */}
+                    <p className="no-comments-yet">No comments yet.</p>
+                  </div>
+                  <div className="add-comment-container">
+                    <input
+                      type="text"
+                      placeholder="Add a comment..."
+                      className="comment-input"
+                    />
+                    <button className="post-comment-button">Post</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <button className="close-modal-button" onClick={handleClosePostModal}>
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="delete-confirmation-modal">
+          <div className="delete-confirmation-content">
+            <h4>Delete Post?</h4>
+            <p>Are you sure you want to delete this post? This action cannot be undone.</p>
+            <div className="delete-confirmation-actions">
+              <button onClick={() => setShowDeleteConfirm(false)} className="cancel-delete-button">
+                Cancel
+              </button>
+              <button onClick={handleDeletePost} className="confirm-delete-button">
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

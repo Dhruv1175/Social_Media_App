@@ -55,8 +55,8 @@ route.get("/user/:userid/:senderid/message/get",verifyToken,DirectMessage)
 
 
 //search action routes
-route.get("/user/search/:username",verifyToken,searchUser);
-route.get("/post/search/:keyword",verifyToken,searchPosts)
+route.get("/user/search", verifyToken, searchUser);
+route.get("/post/search/:keyword", verifyToken, searchPosts);
 
 // API endpoints for frontend
 route.get("/api/getPosts", verifyToken, getAllPost);

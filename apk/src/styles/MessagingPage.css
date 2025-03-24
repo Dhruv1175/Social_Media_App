@@ -13,6 +13,12 @@
   height: 100%;
   max-width: calc(100% - 72px);
   border-left: 1px solid #dbdbdb;
+  transition: margin-left 0.3s ease;
+}
+
+.sidebar:hover + .messaging-container {
+  margin-left: 240px;
+  max-width: calc(100% - 240px);
 }
 
 /* Contacts sidebar */

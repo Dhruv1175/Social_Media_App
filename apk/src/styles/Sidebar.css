@@ -62,6 +62,8 @@
   border-radius: 8px;
   margin-left: 8px;
   margin-right: 8px;
+  cursor: pointer;
+  position: relative;
 }
 
 .nav-item:hover {
@@ -126,6 +128,14 @@
   padding: 10px 0 20px 0;
 }
 
+/* Remove search-related CSS */
+.sidebar .search-container-sidebar,
+.sidebar .search-nav-item.active,
+.sidebar .search-container,
+.sidebar .search-results-panel {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .sidebar {
     width: 72px;
@@ -139,5 +149,14 @@
   .sidebar:hover .nav-text,
   .sidebar:hover .profile-text {
     display: none;
+  }
+
+  .sidebar .search-results-panel {
+    width: 100vw;
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 72px;
+    border-radius: 0;
   }
 } 
