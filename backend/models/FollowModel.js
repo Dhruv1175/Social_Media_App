@@ -15,5 +15,8 @@ const followstruct = mongoose.Schema({
     }
 })
 
+// Add a compound index to ensure uniqueness of follower and following combination
+followstruct.index({ follower: 1, following: 1 }, { unique: true });
+
 const followermodel = mongoose.model('Follow', followstruct)
 export default followermodel

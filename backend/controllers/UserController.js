@@ -58,8 +58,8 @@ export const getUserProfile = async (req,res) =>{
 const exist = await usermodel.findOne({ _id: id });
 if (exist) {
     // Fetch followers and following using the correct conditions
-    const followers = await followermodel.find({ follower: id });  // Fetch followers
-    const following = await followermodel.find({ following: id });  // Fetch following
+    const followers = await followermodel.find({ following: id }).populate('follower', 'name avatar');  // Users who follow this profile
+    const following = await followermodel.find({ follower: id }).populate('following', 'name avatar');  // Users whom this profile follows
 
     // Add the followers and following arrays to the 'exist' object
     exist.followers = followers;

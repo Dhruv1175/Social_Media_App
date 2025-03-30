@@ -7,6 +7,7 @@ import ProfilePage from './ProfilePage';
 import MessagingPage from './MessagingPage';
 import SearchPage from './SearchPage';
 import UserProfilePage from './UserProfilePage';
+import FollowsPage from './FollowsPage';
 
 
 export default function Main() {
@@ -21,6 +22,7 @@ export default function Main() {
             <Route path={"/profile/:userId"} element={<UserProfilePage/>} />
             <Route path={"/messages"} element={<MessagingPage/>} />
             <Route path={"/search"} element={<SearchPage/>} />
+            <Route path={"/follows"} element={<FollowsPage/>} />
         </Routes>
         </BrowserRouter>
     </div>

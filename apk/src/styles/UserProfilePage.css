@@ -92,19 +92,33 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  border: none;
   transition: all 0.3s ease;
 }
 
 .follow-button {
   background-color: #0095f6;
   color: white;
+  border: none;
+  transition: all 0.2s ease;
+  min-width: 80px;
 }
 
 .follow-button.following {
-  background-color: #efefef;
+  background-color: white;
   color: #262626;
   border: 1px solid #dbdbdb;
+}
+
+.follow-button.error {
+  background-color: #ed4956;
+  color: white;
+  border: none;
+}
+
+.follow-button.confirm-unfollow {
+  background-color: #ed4956;
+  color: white;
+  border: none;
 }
 
 .follow-button:hover {
@@ -112,21 +126,29 @@
 }
 
 .follow-button.following:hover {
-  background-color: #dbdbdb;
+  background-color: #f8f8f8;
+  border-color: #c7c7c7;
+}
+
+.follow-button.confirm-unfollow:hover {
+  background-color: #c13584;
 }
 
 .follow-button:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+  background-color: #0095f6;
 }
 
 .message-button {
-  background-color: #efefef;
+  background-color: white;
   color: #262626;
+  border: 1px solid #dbdbdb;
 }
 
 .message-button:hover {
-  background-color: #dbdbdb;
+  background-color: #f8f8f8;
+  border-color: #c7c7c7;
 }
 
 .stats {
@@ -471,4 +493,278 @@
   .post-modal-details {
     height: 50vh;
   }
+}
+
+.clickable-stat {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.clickable-stat:hover {
+  color: #0095f6;
+  text-decoration: underline;
+}
+
+/* Post Options Menu */
+.post-options-container {
+  position: relative;
+  z-index: 200;
+}
+
+.post-options-button {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: #262626;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.post-options-button:hover {
+  background-color: #f0f0f0;
+}
+
+.post-options-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 180px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 220;
+  overflow: hidden;
+  animation: fadeIn 0.2s ease;
+}
+
+.option-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #f5f5f5;
+  font-size: 14px;
+  font-weight: 500;
+  color: #262626;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.option-button:last-child {
+  border-bottom: none;
+}
+
+.option-button:hover {
+  background-color: #fafafa;
+}
+
+.delete-option {
+  color: #ed4956;
+}
+
+.delete-option:hover {
+  background-color: #fff0f1;
+}
+
+/* Delete confirmation dialog - Instagram style */
+.delete-confirm-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 400px;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  padding: 24px;
+  text-align: center;
+}
+
+.delete-confirm-dialog h4 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 16px;
+  color: #262626;
+}
+
+.delete-confirm-dialog p {
+  font-size: 14px;
+  color: #8e8e8e;
+  margin: 0 0 24px;
+  line-height: 1.4;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cancel-button {
+  width: 100%;
+  padding: 12px;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.cancel-button:hover {
+  background-color: #f5f5f5;
+}
+
+.delete-button {
+  width: 100%;
+  padding: 12px;
+  background-color: #ed4956;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.delete-button:hover:not(:disabled) {
+  background-color: #c63241;
+}
+
+.delete-button:disabled,
+.cancel-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Caption editing */
+.caption-edit-container {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.caption-editor {
+  width: 100%;
+  border: 1px solid #dbdbdb;
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 14px;
+  resize: none;
+  margin-bottom: 12px;
+  font-family: inherit;
+  background-color: #fafafa;
+}
+
+.caption-editor:focus {
+  outline: none;
+  border-color: #a8a8a8;
+  background-color: #fff;
+}
+
+.caption-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cancel-edit-button {
+  padding: 8px 16px;
+  background: none;
+  border: 1px solid #dbdbdb;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #262626;
+  cursor: pointer;
+}
+
+.save-edit-button {
+  padding: 8px 16px;
+  background-color: #0095f6;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.save-edit-button:hover:not(:disabled) {
+  background-color: #0074cc;
+}
+
+.save-edit-button:disabled {
+  opacity: 0.7;
+}
+
+/* Post actions in modal */
+.post-modal-actions {
+  padding: 12px 0;
+  border-top: 1px solid #efefef;
+  border-bottom: 1px solid #efefef;
+}
+
+.post-actions {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+
+.left-actions {
+  display: flex;
+  gap: 16px;
+}
+
+.action-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #262626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.action-button:hover {
+  opacity: 0.7;
+}
+
+.post-likes-count {
+  font-weight: 600;
+  font-size: 14px;
+  color: #262626;
+  padding-top: 4px;
+}
+
+/* Overlay for delete confirm */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.65);
+  z-index: 999;
+}
+
+/* Animation for menus */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 } 

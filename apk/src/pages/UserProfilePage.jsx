@@ -1,9 +1,88 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/Sidebar';
-import { Grid, Bookmark, User, ArrowLeft } from 'lucide-react';
+import { Grid, Bookmark, User, ArrowLeft, MoreHorizontal, Edit, Trash2, Heart, MessageCircle, Share2 } from 'lucide-react';
 import '../styles/UserProfilePage.css';
+
+// PostOptions component to better handle options menu
+const PostOptions = ({ post, currentUser, onEdit, onDelete }) => {
+  const [showOptions, setShowOptions] = useState(false);
+  const optionsRef = useRef(null);
+
+  const toggleOptions = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setShowOptions(!showOptions);
+  };
+
+  const handleEdit = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setShowOptions(false);
+    onEdit(post);
+  };
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setShowOptions(false);
+    onDelete(post);
+  };
+
+  const isOwnPost = () => {
+    if (!post || !currentUser) return false;
+    const currentUserId = localStorage.getItem('userId');
+    return post.user?._id === currentUserId || post.userId === currentUserId;
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (optionsRef.current && !optionsRef.current.contains(e.target)) {
+        setShowOptions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  if (!isOwnPost()) return null;
+
+  return (
+    <div className="post-options-container" ref={optionsRef}>
+      <button 
+        className="post-options-button" 
+        onClick={toggleOptions}
+        type="button"
+        aria-label="Post options"
+      >
+        <MoreHorizontal size={20} />
+      </button>
+      
+      {showOptions && (
+        <div className="post-options-menu" onClick={(e) => e.stopPropagation()}>
+          <button 
+            onClick={handleEdit} 
+            className="option-button"
+            type="button"
+          >
+            <Edit size={16} />
+            <span>Edit</span>
+          </button>
+          <button 
+            onClick={handleDelete} 
+            className="option-button delete-option"
+            type="button"
+          >
+            <Trash2 size={16} />
+            <span>Delete</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const UserProfilePage = () => {
   const { userId } = useParams();
@@ -17,6 +96,15 @@ const UserProfilePage = () => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [showPostModal, setShowPostModal] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [followError, setFollowError] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [showUnfollowConfirm, setShowUnfollowConfirm] = useState(false);
+  const [showPostOptions, setShowPostOptions] = useState(false);
+  const [editPostMode, setEditPostMode] = useState(false);
+  const [editedPostText, setEditedPostText] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const optionsRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -59,13 +147,29 @@ const UserProfilePage = () => {
 
         setProfileUser(profileResponse.data.exist);
         
-        // Check if current user is following the profile user
-        if (profileResponse.data.exist && profileResponse.data.exist.followers) {
+        // First check in localStorage if we're already following this user
+        const followedUsers = JSON.parse(localStorage.getItem('followedUsers') || '[]');
+        const isAlreadyFollowing = followedUsers.includes(userId);
+        
+        // If found in localStorage, use that state directly
+        if (isAlreadyFollowing) {
+          setIsFollowing(true);
+        } 
+        // Otherwise, check from the API response
+        else if (profileResponse.data.exist && profileResponse.data.exist.followers) {
           const isFollowing = profileResponse.data.exist.followers.some(
-            follower => follower && follower.follower && follower.follower._id === currentUserId
+            followerObj => followerObj?.follower?._id === currentUserId
           );
           setIsFollowing(isFollowing);
+          
+          // If we are following but it's not in localStorage, update localStorage
+          if (isFollowing && !isAlreadyFollowing) {
+            followedUsers.push(userId);
+            localStorage.setItem('followedUsers', JSON.stringify(followedUsers));
+          }
         }
+        
+        setFollowersCount(profileResponse.data.exist.followers?.length || 0);
 
         // Fetch user posts - make sure we're using the right endpoint
         const postsResponse = await axios.get(
@@ -92,47 +196,119 @@ const UserProfilePage = () => {
   const handleFollow = async () => {
     if (followLoading) return; // Prevent multiple clicks
     
+    // Reset error state
+    setFollowError(false);
+    
+    // If already following, show confirmation first
+    if (isFollowing && !showUnfollowConfirm) {
+      setShowUnfollowConfirm(true);
+      setTimeout(() => {
+        setShowUnfollowConfirm(false);
+      }, 3000); // Auto-reset after 3 seconds
+      return;
+    }
+    
     try {
       setFollowLoading(true);
       const token = localStorage.getItem('accessToken');
       const currentUserId = localStorage.getItem('userId');
       
-      if (!token || !currentUserId || !profileUser) {
+      if (!currentUserId || !profileUser) {
         setFollowLoading(false);
         return;
       }
 
-      const headers = { Authorization: `Bearer ${token}` };
+      // Get the current followed users list
+      const followedUsers = JSON.parse(localStorage.getItem('followedUsers') || '[]');
       
-      // Toggle follow/unfollow
-      await axios.post(
-        `http://localhost:3080/user/${currentUserId}/follow/${profileUser._id}`,
-        {},
-        { headers }
-      );
+      if (isFollowing) {
+        // UNFOLLOW - no authentication needed
+        const response = await axios.post(
+          `http://localhost:3080/user/${currentUserId}/${profileUser._id}/unfollow`,
+          {} // No need for authentication headers
+        );
 
-      // Update followers count and following state
-      setIsFollowing(!isFollowing);
-      
-      if (profileUser.followers) {
-        if (isFollowing) {
-          // If currently following, removing one follower
-          profileUser.followers = profileUser.followers.filter(
-            f => !(f.follower && f.follower._id === currentUserId)
-          );
-        } else {
-          // If not following, add current user as follower
-          profileUser.followers.push({
-            follower: { _id: currentUserId, name: currentUser.name, avatar: currentUser.avatar }
-          });
+        if (response.data.success) {
+          // Reset unfollow confirmation
+          setShowUnfollowConfirm(false);
+          
+          // Update UI immediately
+          setIsFollowing(false);
+          
+          // Update followers count
+          setFollowersCount(followersCount - 1);
+          
+          // Remove from localStorage
+          const updatedFollowedUsers = followedUsers.filter(id => id !== profileUser._id);
+          localStorage.setItem('followedUsers', JSON.stringify(updatedFollowedUsers));
+          
+          // Update the followers list in profileUser
+          const updatedProfileUser = {...profileUser};
+          if (updatedProfileUser.followers) {
+            updatedProfileUser.followers = updatedProfileUser.followers.filter(
+              f => !(f.follower && f.follower._id === currentUserId)
+            );
+            setProfileUser(updatedProfileUser);
+          }
         }
-        setProfileUser({...profileUser});
+      } else {
+        // FOLLOW - requires authentication
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        const response = await axios.post(
+          `http://localhost:3080/user/${currentUserId}/${profileUser._id}/follow`,
+          {},
+          { headers }
+        );
+
+        if (response.data.success) {
+          // Update UI immediately
+          setIsFollowing(true);
+          
+          // Update followers count
+          setFollowersCount(followersCount + 1);
+          
+          // Add to localStorage
+          if (!followedUsers.includes(profileUser._id)) {
+            followedUsers.push(profileUser._id);
+            localStorage.setItem('followedUsers', JSON.stringify(followedUsers));
+          }
+          
+          // Update the followers list in profileUser
+          const updatedProfileUser = {...profileUser};
+          if (!updatedProfileUser.followers) {
+            updatedProfileUser.followers = [];
+          }
+          
+          updatedProfileUser.followers.push({
+            follower: { _id: currentUserId, name: currentUser?.name, avatar: currentUser?.avatar }
+          });
+          
+          setProfileUser(updatedProfileUser);
+        }
       }
-      
     } catch (error) {
       console.error('Error toggling follow:', error);
+      setFollowError(true);
+      
+      // Display the specific error message from the backend
+      if (error.response && error.response.data && error.response.data.message) {
+        alert(error.response.data.message);
+      } else {
+        console.error('Error details:', error.response ? error.response.data : 'No response data');
+        alert('Failed to follow/unfollow. Please try again.');
+      }
     } finally {
       setFollowLoading(false);
+    }
+  };
+
+  const handleMessage = async () => {
+    try {
+      // If the messaging page already exists, navigate directly to it
+      navigate('/messages', { state: { selectedContact: profileUser } });
+    } catch (error) {
+      console.error('Error starting conversation:', error);
     }
   };
 
@@ -173,11 +349,151 @@ const UserProfilePage = () => {
   const handlePostClick = (post) => {
     setSelectedPost(post);
     setShowPostModal(true);
+    setEditPostMode(false);
+    setShowDeleteConfirm(false);
+    setEditedPostText(post.text || '');
   };
 
   const handleCloseModal = () => {
     setShowPostModal(false);
     setSelectedPost(null);
+    setEditPostMode(false);
+    setShowDeleteConfirm(false);
+  };
+
+  const handleEditPost = (post) => {
+    setEditPostMode(true);
+    setEditedPostText(post.text || '');
+  };
+
+  const handleDeleteRequest = (post) => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleTextChange = (e) => {
+    setEditedPostText(e.target.value);
+  };
+
+  const handleSavePost = async () => {
+    if (!selectedPost || !editedPostText.trim()) return;
+    
+    try {
+      setIsSubmitting(true);
+      
+      // Try Firebase implementation first
+      try {
+        // Import Firebase if it's available in your project
+        // This is a mock implementation - adjust according to your actual Firebase setup
+        const firebase = window.firebase;
+        if (firebase && firebase.firestore) {
+          const db = firebase.firestore();
+          await db.collection('posts').doc(selectedPost._id).update({
+            text: editedPostText,
+            updatedAt: new Date()
+          });
+          
+          // Update post in local state
+          const updatedPosts = posts.map(post => 
+            post._id === selectedPost._id 
+            ? { ...post, text: editedPostText } 
+            : post
+          );
+          
+          setPosts(updatedPosts);
+          setSelectedPost({...selectedPost, text: editedPostText});
+          setEditPostMode(false);
+          return; // Exit early if Firebase succeeds
+        }
+      } catch (firebaseError) {
+        console.log('Firebase not available or error:', firebaseError);
+        // Continue with REST API if Firebase fails
+      }
+      
+      // Fallback to REST API
+      const token = localStorage.getItem('accessToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      const response = await axios.patch(
+        `http://localhost:3080/api/post/${selectedPost._id}`,
+        { text: editedPostText },
+        { headers }
+      );
+      
+      if (response.status === 200) {
+        // Update post in local state
+        const updatedPosts = posts.map(post => 
+          post._id === selectedPost._id 
+          ? { ...post, text: editedPostText } 
+          : post
+        );
+        
+        setPosts(updatedPosts);
+        setSelectedPost({...selectedPost, text: editedPostText});
+        setEditPostMode(false);
+      }
+    } catch (error) {
+      console.error('Error saving post:', error);
+      alert('Failed to save post. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!selectedPost) return;
+    
+    try {
+      setIsSubmitting(true);
+      
+      // Try Firebase implementation first
+      try {
+        // Import Firebase if it's available in your project
+        // This is a mock implementation - adjust according to your actual Firebase setup
+        const firebase = window.firebase;
+        if (firebase && firebase.firestore) {
+          const db = firebase.firestore();
+          await db.collection('posts').doc(selectedPost._id).delete();
+          
+          // Remove post from local state
+          const updatedPosts = posts.filter(post => post._id !== selectedPost._id);
+          setPosts(updatedPosts);
+          
+          // Close modal
+          setShowPostModal(false);
+          setSelectedPost(null);
+          setShowDeleteConfirm(false);
+          return; // Exit early if Firebase succeeds
+        }
+      } catch (firebaseError) {
+        console.log('Firebase not available or error:', firebaseError);
+        // Continue with REST API if Firebase fails
+      }
+      
+      // Fallback to REST API
+      const token = localStorage.getItem('accessToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      const response = await axios.delete(
+        `http://localhost:3080/api/post/${selectedPost._id}`,
+        { headers }
+      );
+      
+      if (response.status === 200) {
+        // Remove post from local state
+        const updatedPosts = posts.filter(post => post._id !== selectedPost._id);
+        setPosts(updatedPosts);
+        
+        // Close modal
+        setShowPostModal(false);
+        setSelectedPost(null);
+        setShowDeleteConfirm(false);
+      }
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Failed to delete post. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleBackClick = () => {
@@ -214,22 +530,37 @@ const UserProfilePage = () => {
               <div className="profile-top">
                 <h2>{profileUser?.name || 'Username'}</h2>
                 <div className="action-buttons">
-                  <button 
-                    className={`follow-button ${isFollowing ? 'following' : ''}`}
-                    onClick={handleFollow}
-                    disabled={followLoading}
-                  >
-                    {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
-                  </button>
-                  <button className="message-button" onClick={() => navigate('/messages')}>
+                  {isFollowing ? (
+                    <button 
+                      className={`follow-button following ${followError ? 'error' : ''} ${showUnfollowConfirm ? 'confirm-unfollow' : ''}`}
+                      onClick={handleFollow}
+                      disabled={followLoading}
+                    >
+                      {followLoading ? 'Loading...' : 
+                       showUnfollowConfirm ? 'Unfollow?' : 'Following'}
+                    </button>
+                  ) : (
+                    <button 
+                      className={`follow-button ${followError ? 'error' : ''}`}
+                      onClick={handleFollow}
+                      disabled={followLoading}
+                    >
+                      {followLoading ? 'Loading...' : 'Follow'}
+                    </button>
+                  )}
+                  <button className="message-button" onClick={handleMessage}>
                     Message
                   </button>
                 </div>
               </div>
               <div className="stats">
                 <span><strong>{posts?.length || 0}</strong> posts</span>
-                <span><strong>{profileUser?.followers?.length || 0}</strong> followers</span>
-                <span><strong>{profileUser?.following?.length || 0}</strong> following</span>
+                <span className="clickable-stat" onClick={() => navigate('/follows', { state: { filter: 'followers', userId: profileUser?._id } })}>
+                  <strong>{followersCount}</strong> followers
+                </span>
+                <span className="clickable-stat" onClick={() => navigate('/follows', { state: { filter: 'following', userId: profileUser?._id } })}>
+                  <strong>{profileUser?.following?.length || 0}</strong> following
+                </span>
               </div>
               <div className="bio">
                 <p>{profileUser?.bio || 'No bio available'}</p>
@@ -252,7 +583,7 @@ const UserProfilePage = () => {
         </div>
       </div>
 
-      {/* Post Modal */}
+      {/* Post Modal with Enhanced UI and Edit/Delete Options */}
       {showPostModal && selectedPost && (
         <div className="post-modal-overlay" onClick={handleCloseModal}>
           <div className="post-modal" onClick={(e) => e.stopPropagation()}>
@@ -283,12 +614,70 @@ const UserProfilePage = () => {
                     />
                     <span className="post-username">{profileUser?.name}</span>
                   </div>
+                  
+                  {/* Using the new PostOptions component */}
+                  <PostOptions 
+                    post={selectedPost}
+                    currentUser={currentUser}
+                    onEdit={handleEditPost}
+                    onDelete={handleDeleteRequest}
+                  />
                 </div>
+                
                 <div className="post-modal-caption">
-                  <p>
-                    <strong>{profileUser?.name}</strong> {selectedPost.text}
-                  </p>
+                  {editPostMode ? (
+                    <div className="caption-edit-container">
+                      <textarea
+                        value={editedPostText}
+                        onChange={handleTextChange}
+                        className="caption-editor"
+                        rows={3}
+                        disabled={isSubmitting}
+                        placeholder="Edit your caption..."
+                      />
+                      <div className="caption-edit-actions">
+                        <button 
+                          onClick={() => setEditPostMode(false)} 
+                          className="cancel-edit-button"
+                          disabled={isSubmitting}
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          onClick={handleSavePost} 
+                          className="save-edit-button"
+                          disabled={isSubmitting || !editedPostText.trim()}
+                        >
+                          {isSubmitting ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p>
+                      <strong>{profileUser?.name}</strong> {selectedPost.text}
+                    </p>
+                  )}
                 </div>
+                
+                <div className="post-modal-actions">
+                  <div className="post-actions">
+                    <div className="left-actions">
+                      <button className="action-button">
+                        <Heart size={24} />
+                      </button>
+                      <button className="action-button">
+                        <MessageCircle size={24} />
+                      </button>
+                      <button className="action-button">
+                        <Share2 size={24} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="post-likes-count">
+                    <span>{selectedPost.likes || 0} likes</span>
+                  </div>
+                </div>
+                
                 <div className="post-modal-date">
                   <p>{new Date(selectedPost.createdAt).toLocaleDateString()}</p>
                 </div>
@@ -296,6 +685,33 @@ const UserProfilePage = () => {
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Delete confirmation dialog */}
+      {showDeleteConfirm && (
+        <>
+          <div className="overlay" onClick={() => setShowDeleteConfirm(false)}></div>
+          <div className="delete-confirm-dialog">
+            <h4>Delete Post?</h4>
+            <p>Are you sure you want to delete this post? This action cannot be undone.</p>
+            <div className="delete-confirm-actions">
+              <button 
+                onClick={handleDeletePost}
+                className="delete-button"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Deleting...' : 'Delete'}
+              </button>
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                className="cancel-button"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

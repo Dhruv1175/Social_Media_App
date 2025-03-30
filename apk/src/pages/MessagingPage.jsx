@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import io from 'socket.io-client';
 import Sidebar from '../components/Sidebar';
@@ -7,9 +7,12 @@ import { Send, User, ArrowLeft } from 'lucide-react';
 import '../styles/MessagingPage.css';
 
 const MessagingPage = () => {
+  const location = useLocation();
+  const initialContact = location.state?.selectedContact || null;
+  
   const [user, setUser] = useState(null);
   const [contacts, setContacts] = useState([]);
-  const [selectedContact, setSelectedContact] = useState(null);
+  const [selectedContact, setSelectedContact] = useState(initialContact);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -117,16 +120,24 @@ const MessagingPage = () => {
           }
         });
         
-        setContacts(Object.values(uniqueContacts));
+        const contactsList = Object.values(uniqueContacts);
+        setContacts(contactsList);
+
+        // If we have an initial contact from navigation state, make sure it's in the contacts list
+        if (initialContact && !uniqueContacts[initialContact._id]) {
+          contactsList.push(initialContact);
+          setContacts(contactsList);
+        }
+        
+        setLoading(false);
       } catch (error) {
         console.error('Error fetching user data:', error);
-      } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [navigate]);
+  }, [navigate, initialContact]);
 
   // Scroll to bottom of messages
   useEffect(() => {
@@ -156,7 +167,9 @@ const MessagingPage = () => {
       }
     };
 
-    fetchMessages();
+    if (selectedContact) {
+      fetchMessages();
+    }
   }, [selectedContact]);
 
   const handleContactSelect = (contact) => {
@@ -199,33 +212,37 @@ const MessagingPage = () => {
     const userId = localStorage.getItem('userId');
     if (!userId) return;
 
-    // Send message via socket
-    socket.emit('send_message', {
-      senderId: userId,
-      receiverId: selectedContact._id,
-      content: newMessage
-    });
+    try {
+      // Send message via socket
+      socket.emit('send_message', {
+        senderId: userId,
+        receiverId: selectedContact._id,
+        content: newMessage
+      });
 
-    // Optimistically update UI
-    setMessages([
-      ...messages,
-      {
-        sender: userId,
-        receiver: selectedContact._id,
-        content: newMessage,
-        timestamp: new Date()
-      }
-    ]);
+      // Optimistically update UI
+      setMessages([
+        ...messages,
+        {
+          sender: userId,
+          receiver: selectedContact._id,
+          content: newMessage,
+          timestamp: new Date()
+        }
+      ]);
 
-    // Clear input field
-    setNewMessage('');
+      // Clear input field
+      setNewMessage('');
 
-    // Stop typing indicator
-    socket.emit('typing', {
-      senderId: userId,
-      receiverId: selectedContact._id,
-      isTyping: false
-    });
+      // Stop typing indicator
+      socket.emit('typing', {
+        senderId: userId,
+        receiverId: selectedContact._id,
+        isTyping: false
+      });
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
   };
 
   if (loading) {
@@ -256,7 +273,7 @@ const MessagingPage = () => {
                     {contact.avatar ? (
                       <img src={contact.avatar} alt={contact.name} />
                     ) : (
-                      <User size={24} />
+                      <User size={28} />
                     )}
                   </div>
                   <div className="contact-info">
@@ -266,84 +283,81 @@ const MessagingPage = () => {
               ))
             ) : (
               <div className="no-contacts">
-                <p>No contacts yet. Follow users to message them.</p>
+                <p>No contacts available</p>
               </div>
             )}
           </div>
         </div>
 
-        <div className="chat-container">
-          {selectedContact ? (
-            <>
-              <div className="chat-header">
-                <button 
-                  className="back-button" 
-                  onClick={() => setSelectedContact(null)}
-                >
-                  <ArrowLeft size={20} />
-                </button>
-                <div className="contact-avatar">
-                  {selectedContact.avatar ? (
-                    <img src={selectedContact.avatar} alt={selectedContact.name} />
-                  ) : (
-                    <User size={24} />
-                  )}
-                </div>
-                <h3>{selectedContact.name}</h3>
+        {selectedContact ? (
+          <div className="chat-container">
+            <div className="chat-header">
+              <button className="back-button">
+                <ArrowLeft size={24} />
+              </button>
+              <div className="contact-avatar">
+                {selectedContact.avatar ? (
+                  <img src={selectedContact.avatar} alt={selectedContact.name} />
+                ) : (
+                  <User size={16} />
+                )}
               </div>
-              
-              <div className="messages-container">
-                {messages.length > 0 ? (
-                  messages.map((message, index) => (
+              <h3>{selectedContact.name}</h3>
+            </div>
+            <div className="messages-container">
+              {messages.length > 0 ? (
+                messages.map((message, index) => {
+                  const userId = localStorage.getItem('userId');
+                  const isSent = message.sender === userId;
+                  return (
                     <div
                       key={index}
-                      className={`message ${message.sender === user?._id ? 'sent' : 'received'}`}
+                      className={`message ${isSent ? 'sent' : 'received'}`}
                     >
                       <div className="message-content">{message.content}</div>
                       <div className="message-time">
-                        {new Date(message.timestamp).toLocaleTimeString([], { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
+                        {new Date(message.timestamp).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit'
                         })}
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="no-messages">
-                    <p>No messages yet. Start a conversation!</p>
-                  </div>
-                )}
-                {isTyping && (
-                  <div className="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-              
-              <form className="message-input-form" onSubmit={handleSendMessage}>
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={handleInputChange}
-                  placeholder="Type a message..."
-                />
-                <button type="submit" disabled={!newMessage.trim()}>
-                  <Send size={20} />
-                </button>
-              </form>
-            </>
-          ) : (
-            <div className="select-conversation">
-              <div className="select-conversation-content">
-                <h2>Select a conversation</h2>
-                <p>Choose a contact to start messaging</p>
-              </div>
+                  );
+                })
+              ) : (
+                <div className="no-messages">
+                  <p>No messages yet. Say hello!</p>
+                </div>
+              )}
+              {isTyping && (
+                <div className="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
             </div>
-          )}
-        </div>
+            <form className="message-input-form" onSubmit={handleSendMessage}>
+              <input
+                type="text"
+                placeholder="Type a message..."
+                value={newMessage}
+                onChange={handleInputChange}
+              />
+              <button type="submit">
+                <Send size={24} />
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div className="no-chat-selected">
+            <div className="no-chat-content">
+              <h3>Select a conversation</h3>
+              <p>Choose a person from your contacts to start chatting</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

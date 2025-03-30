@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Heart, MessageCircle, Share2, Bookmark, Edit, Check, MoreHorizontal, Trash2, X } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Posts.css';
@@ -10,6 +10,7 @@ const Posts = ({ posts: initialPosts, user }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showOptions, setShowOptions] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const optionsRef = useRef(null);
 
   useEffect(() => {
     if (initialPosts && initialPosts.length > 0) {
@@ -33,6 +34,7 @@ const Posts = ({ posts: initialPosts, user }) => {
   // Fetch posts from backend with complete like information
   const fetchPosts = async () => {
     try {
+      setIsSubmitting(true);
       const userId = user?._id || localStorage.getItem('userId');
       if (!userId) {
         console.error('User ID not found.');
@@ -114,10 +116,15 @@ const Posts = ({ posts: initialPosts, user }) => {
       } catch (localStorageError) {
         console.error('Error loading from localStorage:', localStorageError);
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const togglePostOptions = (postId) => {
+  const togglePostOptions = (postId, e) => {
+    if (e) {
+      e.stopPropagation();
+    }
     if (showOptions === postId) {
       setShowOptions(null);
     } else {
@@ -126,7 +133,10 @@ const Posts = ({ posts: initialPosts, user }) => {
     }
   };
 
-  const toggleEditPost = (postId, currentText) => {
+  const toggleEditPost = (postId, currentText, e) => {
+    if (e) {
+      e.stopPropagation();
+    }
     setShowOptions(null); // Close options menu
     
     if (editingPostId === postId) {
@@ -158,7 +168,6 @@ const Posts = ({ posts: initialPosts, user }) => {
         );
         setEditingPostId(null);
       }
-      console.log('Post saved:', response.data);
     } catch (error) {
       console.error('Error saving post:', error);
     } finally {
@@ -167,7 +176,10 @@ const Posts = ({ posts: initialPosts, user }) => {
   };
 
   // Toggle delete confirmation dialog
-  const toggleDeleteConfirm = (postId) => {
+  const toggleDeleteConfirm = (postId, e) => {
+    if (e) {
+      e.stopPropagation();
+    }
     setShowOptions(null); // Close options menu
     setShowDeleteConfirm(showDeleteConfirm === postId ? null : postId);
   };
@@ -224,7 +236,6 @@ const Posts = ({ posts: initialPosts, user }) => {
     const endpoint = `http://localhost:3080/user/${userId}/post/userpost/${postId}/like`;
     try {
       const response = await axios.post(endpoint, null, { headers: authHeaders() });
-      console.log('Like toggle response:', response.data);
       
       // Update UI with backend values.
       setPosts(prevPosts =>
@@ -251,63 +262,49 @@ const Posts = ({ posts: initialPosts, user }) => {
       
     } catch (error) {
       console.error('Error toggling like:', error);
-      
-      // Revert the optimistic update on error
+      // Revert optimistic update on error.
       setPosts(prevPosts =>
-        prevPosts.map(post => {
-          if (post._id === postId) {
-            return { ...post, isLiked: currentIsLiked, likes: currentLikes };
-          }
-          return post;
-        })
+        prevPosts.map(post =>
+          post._id === postId ? { 
+            ...post, 
+            isLiked: currentIsLiked, 
+            likes: currentLikes 
+          } : post
+        )
       );
     }
   };
 
-  // Toggle save using a single toggle endpoint.
+  // Toggle save status
   const toggleSave = async (e, postId) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // Optimistically update save state.
-    let newIsSaved;
+
+    // Get current state
+    const currentPost = posts.find(post => post._id === postId);
+    const currentIsSaved = currentPost?.isSaved || false;
+    const newIsSaved = !currentIsSaved;
+
+    // Optimistic update
     setPosts(prevPosts =>
-      prevPosts.map(post => {
-        if (post._id === postId) {
-          newIsSaved = !post.isSaved;
-          return { ...post, isSaved: newIsSaved };
-        }
-        return post;
-      })
+      prevPosts.map(post =>
+        post._id === postId ? { ...post, isSaved: newIsSaved } : post
+      )
     );
 
-    const userId = user?._id || localStorage.getItem('userId');
-    if (!userId) {
-      console.error('User ID not found.');
-      return;
-    }
-    
-    // Use a single toggle endpoint for saving
-    const endpoint = `http://localhost:3080/user/post/${userId}/${postId}/save`;
-    
     try {
-      const response = await axios.post(endpoint, null, { headers: authHeaders() });
-      console.log('Save toggle response:', response.data);
-      
-      // Update UI with backend response
-      setPosts(prevPosts =>
-        prevPosts.map(post => {
-          if (post._id === postId) {
-            return { ...post, isSaved: response.data.isSaved };
-          }
-          return post;
-        })
-      );
-      
-      // Store saved status in localStorage as a backup
+      // Update in localStorage
       const savedPosts = JSON.parse(localStorage.getItem('savedPosts') || '{}');
-      savedPosts[postId] = response.data.isSaved;
+      savedPosts[postId] = newIsSaved;
       localStorage.setItem('savedPosts', JSON.stringify(savedPosts));
+      
+      // If we had a backend endpoint for saving posts, we'd call it here
+      // Example:
+      // const response = await axios.post(
+      //  `http://localhost:3080/user/post/${postId}/save`,
+      //  { saved: newIsSaved },
+      //  { headers: authHeaders() }
+      // );
       
     } catch (error) {
       console.error('Error toggling save:', error);
@@ -322,13 +319,16 @@ const Posts = ({ posts: initialPosts, user }) => {
 
   // Close any open menus when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
-      setShowOptions(null);
-      setShowDeleteConfirm(null);
+    const handleClickOutside = (e) => {
+      if (optionsRef.current && !optionsRef.current.contains(e.target)) {
+        setShowOptions(null);
+      }
+      
+      // Don't close delete confirmation on outside click since it has its own overlay
     };
     
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Initialize posts with localStorage backup data when component mounts
@@ -375,14 +375,12 @@ const Posts = ({ posts: initialPosts, user }) => {
                 </div>
               </div>
               {post.user?._id === user?._id && (
-                <div className="post-actions-top">
+                <div className="post-actions-top" ref={optionsRef}>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      togglePostOptions(post._id);
-                    }}
+                    onClick={(e) => togglePostOptions(post._id, e)}
                     className="more-options"
                     type="button"
+                    aria-label="Post options"
                   >
                     <MoreHorizontal size={20} />
                   </button>
@@ -391,7 +389,7 @@ const Posts = ({ posts: initialPosts, user }) => {
                   {showOptions === post._id && (
                     <div className="post-options-dropdown" onClick={(e) => e.stopPropagation()}>
                       <button 
-                        onClick={() => toggleEditPost(post._id, post.text)}
+                        onClick={(e) => toggleEditPost(post._id, post.text, e)}
                         className="option-button"
                         disabled={isSubmitting}
                       >
@@ -399,7 +397,7 @@ const Posts = ({ posts: initialPosts, user }) => {
                         <span>Edit</span>
                       </button>
                       <button 
-                        onClick={() => toggleDeleteConfirm(post._id)}
+                        onClick={(e) => toggleDeleteConfirm(post._id, e)}
                         className="option-button delete-option"
                         disabled={isSubmitting}
                       >
@@ -411,30 +409,6 @@ const Posts = ({ posts: initialPosts, user }) => {
                 </div>
               )}
             </header>
-
-            {/* Delete confirmation dialog */}
-            {showDeleteConfirm === post._id && (
-              <div className="delete-confirm-dialog" onClick={(e) => e.stopPropagation()}>
-                <h4>Delete Post?</h4>
-                <p>Are you sure you want to delete this post?</p>
-                <div className="delete-confirm-actions">
-                  <button 
-                    onClick={() => setShowDeleteConfirm(null)}
-                    className="cancel-button"
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={() => handleDeletePost(post._id)}
-                    className="delete-button"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? 'Deleting...' : 'Delete'}
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* Post Media - Support both image and video */}
             {post.image && (
@@ -460,44 +434,33 @@ const Posts = ({ posts: initialPosts, user }) => {
             {/* Post Actions */}
             <div className="post-actions">
               <div className="left-actions">
-                <button
-                  onClick={(e) => toggleLike(e, post._id)}
-                  className="action-button"
-                  aria-label={post.isLiked ? "Unlike" : "Like"}
-                  type="button"
+                <button 
+                  onClick={(e) => toggleLike(e, post._id)} 
+                  className={`action-button ${post.isLiked ? 'liked' : ''}`}
+                  aria-label={post.isLiked ? 'Unlike' : 'Like'}
                 >
-                  <Heart
-                    size={24}
-                    fill={post.isLiked ? "#ed4956" : "none"}
-                    stroke={post.isLiked ? "#ed4956" : "currentColor"}
-                  />
+                  <Heart size={24} fill={post.isLiked ? "#ed4956" : "none"} />
                 </button>
-                <button className="action-button" aria-label="Comment" type="button">
+                <button className="action-button" aria-label="Comment">
                   <MessageCircle size={24} />
                 </button>
-                <button className="action-button" aria-label="Share" type="button">
+                <button className="action-button" aria-label="Share">
                   <Share2 size={24} />
                 </button>
               </div>
-              <button
-                onClick={(e) => toggleSave(e, post._id)}
-                className="action-button"
-                aria-label={post.isSaved ? "Unsave" : "Save"}
-                type="button"
+              <button 
+                onClick={(e) => toggleSave(e, post._id)} 
+                className={`action-button ${post.isSaved ? 'saved' : ''}`}
+                aria-label={post.isSaved ? 'Unsave' : 'Save'}
               >
-                <Bookmark
-                  size={24}
-                  fill={post.isSaved ? "#262626" : "none"}
-                />
+                <Bookmark size={24} fill={post.isSaved ? "#262626" : "none"} />
               </button>
             </div>
 
-            {/* Likes */}
             <div className="likes-count">
-              {(post.likes || 0).toLocaleString()} likes
+              {post.likes > 0 ? `${post.likes} ${post.likes === 1 ? 'like' : 'likes'}` : 'Be the first to like this'}
             </div>
 
-            {/* Caption/Text */}
             <div className="post-caption">
               {editingPostId === post._id ? (
                 <div className="caption-edit-container">
@@ -505,8 +468,9 @@ const Posts = ({ posts: initialPosts, user }) => {
                     value={editedPostText[post._id] || ''}
                     onChange={(e) => handleTextChange(post._id, e.target.value)}
                     className="caption-editor"
-                    rows={2}
+                    rows={3}
                     disabled={isSubmitting}
+                    placeholder="Edit your caption..."
                   />
                   <div className="caption-edit-actions">
                     <button 
@@ -519,7 +483,7 @@ const Posts = ({ posts: initialPosts, user }) => {
                     <button 
                       onClick={() => handleSavePost(post._id)} 
                       className="save-edit-button"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !editedPostText[post._id]?.trim()}
                     >
                       {isSubmitting ? 'Saving...' : 'Save'}
                     </button>
@@ -550,6 +514,33 @@ const Posts = ({ posts: initialPosts, user }) => {
         ))
       ) : (
         <div className="no-posts">No posts yet</div>
+      )}
+      
+      {/* Delete confirmation overlay */}
+      {showDeleteConfirm && (
+        <>
+          <div className="overlay" onClick={() => setShowDeleteConfirm(null)}></div>
+          <div className="delete-confirm-dialog">
+            <h4>Delete Post?</h4>
+            <p>Are you sure you want to delete this post? This action cannot be undone.</p>
+            <div className="delete-confirm-actions">
+              <button 
+                onClick={() => handleDeletePost(showDeleteConfirm)}
+                className="delete-button"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Deleting...' : 'Delete'}
+              </button>
+              <button 
+                onClick={() => setShowDeleteConfirm(null)}
+                className="cancel-button"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
