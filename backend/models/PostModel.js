@@ -15,6 +15,11 @@ const poststruct = mongoose.Schema({
     video:{
         type:String
     },
+    postType:{
+        type:String,
+        enum: ['post', 'reel'],
+        default: 'post'
+    },
     like:{type:mongoose.Schema.Types.ObjectId,ref:'User'},
     comments:{type:mongoose.Schema.Types.ObjectId,ref:'Comment'},
     date:{

@@ -4,6 +4,8 @@ import axios from 'axios';
 import { Settings, Grid, Bookmark, X, Upload, Heart, MessageCircle, Image, Edit, Trash2, MoreHorizontal, Video, Film, Share2, BookmarkCheck } from 'lucide-react';
 import '../styles/ProfilePage.css';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { storage } from '../utils/firebaseConfig';
 
 const PostOptions = ({ post, onEdit, onDelete }) => {
   const [showOptions, setShowOptions] = useState(false);
@@ -309,6 +311,30 @@ const ProfilePage = () => {
     fetchProfileData();
   }, []);
 
+  // Check if Firebase is properly initialized
+  useEffect(() => {
+    // Try to verify Firebase storage is accessible
+    try {
+      if (storage) {
+        console.log('Firebase storage initialized successfully');
+        
+        // Test creating a reference to verify the storage connection
+        try {
+          const testRef = ref(storage, 'test');
+          console.log('Test storage reference created successfully:', testRef);
+        } catch (refError) {
+          console.error('Error creating test storage reference:', refError);
+          alert('Warning: Media uploads may not work properly. Please check your internet connection.');
+        }
+      } else {
+        console.warn('Firebase storage not available or not initialized');
+        // Don't show an alert here as it might be disruptive on initial load
+      }
+    } catch (error) {
+      console.error('Error checking Firebase storage:', error);
+    }
+  }, []);
+
   const handleOpenEditModal = () => {
     setShowEditModal(true);
   };
@@ -388,7 +414,7 @@ const ProfilePage = () => {
     setSelectedPost(post);
     setShowPostModal(true);
     setEditPostMode(false);
-    setEditedCaption(post.caption || '');
+    setEditedCaption(post.text || '');
     setShowPostOptions(false);
     setShowDeleteConfirm(false);
   };
@@ -406,6 +432,13 @@ const ProfilePage = () => {
 
   // Toggle edit post mode
   const toggleEditMode = () => {
+    if (editPostMode) {
+      // If exiting edit mode, reset file upload state
+      resetFileUpload();
+    } else {
+      // If entering edit mode, set caption from current post
+      setEditedCaption(selectedPost?.text || '');
+    }
     setEditPostMode(!editPostMode);
     setShowPostOptions(false);
   };
@@ -681,19 +714,18 @@ const ProfilePage = () => {
 
   // Filter posts based on active tab
   const getFilteredPosts = () => {
-    if (activeTab === 'saved') return savedPosts;
+    if (!posts || posts.length === 0) return [];
     
-    // For simplicity, let's assume posts with a videoUrl property are reels
-    // and posts with only image or text are regular posts
-    if (activeTab === 'reels') {
-      return posts.filter(post => post.videoUrl);
+    switch (activeTab) {
+      case 'saved':
+        return savedPosts || [];
+      case 'reels':
+        // First check postType field, then fall back to checking for videoUrl
+        return posts.filter(post => post.postType === 'reel' || (!post.postType && post.video));
+      default:
+        // For posts tab, show only regular posts (exclude reels)
+        return posts.filter(post => post.postType === 'post' || (!post.postType && !post.video));
     }
-    
-    if (activeTab === 'posts') {
-      return posts.filter(post => !post.videoUrl);
-    }
-    
-    return posts;
   };
 
   // Render post grid items
@@ -731,13 +763,13 @@ const ProfilePage = () => {
             className="post-grid-item"
           >
             <div className="post-grid-content" onClick={() => handleOpenPost(post)}>
-              {post.videoUrl ? (
+              {post.video || post.postType === 'reel' ? (
                 // Video/Reel post
                 <>
                   <div className="reel-post-item">
                     <img 
                       src={post.thumbnail || post.image || 'https://via.placeholder.com/400?text=Video'} 
-                      alt={post.caption || 'Reel'} 
+                      alt={post.text || 'Reel'} 
                       className="grid-post-image" 
                     />
                     <div className="video-indicator">
@@ -750,14 +782,14 @@ const ProfilePage = () => {
                 <>
                   <img 
                     src={post.image} 
-                    alt={post.caption || 'Post'} 
+                    alt={post.text || 'Post'} 
                     className="grid-post-image" 
                   />
                 </>
               ) : (
                 // Text-only post
                 <div className="text-post-grid">
-                  <p>{post.caption}</p>
+                  <p>{post.text}</p>
                 </div>
               )}
               <div className="post-overlay">
@@ -770,6 +802,12 @@ const ProfilePage = () => {
                     <MessageCircle size={20} className="interaction-icon" /> 
                     {post.comments?.length || 0}
                   </span>
+                </div>
+                
+                <div className="post-grid-info">
+                  <div className="post-grid-date">
+                    {formatDate(post.date || post.createdAt)}
+                  </div>
                 </div>
                 
                 <div className="post-grid-options" onClick={(e) => e.stopPropagation()}>
@@ -818,11 +856,30 @@ const ProfilePage = () => {
   const handleDeletePost = async () => {
     try {
       const token = localStorage.getItem('accessToken');
+      const userId = localStorage.getItem('userId');
       
-      // Using the correct route from the backend
+      if (!token || !userId) {
+        console.error('Authentication required');
+        alert('Please log in to delete posts');
+        return;
+      }
+
+      // First verify if the user owns the post
+      if (!isOwnPost(selectedPost)) {
+        console.error('Unauthorized: User does not own this post');
+        alert('You can only delete your own posts');
+        return;
+      }
+      
+      // Using the correct route from the backend with proper authentication
       const response = await axios.delete(
         `http://localhost:3080/user/post/userpost/${selectedPost._id}/delete`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
       );
       
       if (response.data && response.status === 200) {
@@ -840,19 +897,38 @@ const ProfilePage = () => {
           localStorage.setItem('cachedSavedPosts', JSON.stringify(updatedSavedPosts));
         }
         
-        // Close modal
+        // Close modal and reset states
         setShowPostModal(false);
         setSelectedPost(null);
+        setShowDeleteConfirm(false);
         
         console.log('Post deleted successfully:', response.data);
       } else {
         console.error('Failed to delete post:', response);
+        alert('Failed to delete post. Please try again.');
       }
     } catch (error) {
       console.error('Error deleting post:', error);
       if (error.response) {
+        // Handle specific error cases
+        switch (error.response.status) {
+          case 401:
+            alert('Your session has expired. Please log in again.');
+            // Optionally redirect to login
+            break;
+          case 403:
+            alert('You do not have permission to delete this post.');
+            break;
+          case 404:
+            alert('Post not found.');
+            break;
+          default:
+            alert('An error occurred while deleting the post. Please try again.');
+        }
         console.error('Response data:', error.response.data);
         console.error('Response status:', error.response.status);
+      } else {
+        alert('Network error. Please check your connection and try again.');
       }
     }
   };
@@ -865,74 +941,235 @@ const ProfilePage = () => {
 
   // Handle file change for image/video updates
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    // Check if it's an image or video
-    const fileType = file.type.split('/')[0];
-    setUploadType(fileType);
-    
-    // Create a preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setUploadPreview(reader.result);
-    };
-    reader.readAsDataURL(file);
-    
-    // Store the file for upload
-    setNewFileUpload(file);
+    try {
+      console.log('File input change detected');
+      const file = e.target.files[0];
+      
+      if (!file) {
+        console.log('No file selected');
+        return;
+      }
+      
+      console.log('File selected:', file.name, 'type:', file.type, 'size:', file.size);
+      
+      // Validate file size (limit to 10MB)
+      const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+      if (file.size > maxSize) {
+        alert(`File too large. Maximum size is 10MB.`);
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
+      // Check if it's an image or video
+      const fileType = file.type.split('/')[0];
+      if (fileType !== 'image' && fileType !== 'video') {
+        alert('Please select an image or video file.');
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
+      setUploadType(fileType);
+      console.log('Setting upload type:', fileType);
+      
+      // Create a preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        console.log('File preview created');
+        setUploadPreview(reader.result);
+      };
+      reader.onerror = (error) => {
+        console.error('Error creating file preview:', error);
+        alert('Failed to preview file. Please try a different file.');
+        resetFileUpload();
+      };
+      
+      reader.readAsDataURL(file);
+      
+      // Store the file for upload
+      setNewFileUpload(file);
+      console.log('File ready for upload');
+    } catch (error) {
+      console.error('Error handling file change:', error);
+      alert('An error occurred while processing the file. Please try again.');
+      resetFileUpload();
+    }
+  };
+  
+  // Reset all file upload state
+  const resetFileUpload = () => {
+    setNewFileUpload(null);
+    setUploadPreview('');
+    setUploadProgress(0);
+    setUploadType('');
+    // Reset file input value
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   // Upload file to Firebase and update post
   const uploadFileToFirebase = async (file, postId) => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      setUploadProgress(0);
-      
-      // Create form data for file upload
-      const formData = new FormData();
-      formData.append('media', file);
-      formData.append('type', uploadType); // 'image' or 'video'
-      
-      // Upload to Firebase through your backend API
-      const response = await axios.post(
-        `http://localhost:3080/user/post/userpost/${postId}/updateMedia`,
-        formData,
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
-          },
-          onUploadProgress: (progressEvent) => {
-            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(progress);
-          }
+    return new Promise((resolve, reject) => {
+      try {
+        // Check if Firebase is available
+        if (!storage) {
+          const error = new Error('Firebase storage not available');
+          console.error(error);
+          alert('Media upload service is currently unavailable. Please try again later.');
+          reject(error);
+          return;
         }
-      );
-      
-      console.log('File upload response:', response.data);
-      return response.data.mediaUrl || '';
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      throw error;
-    }
+
+        // Check if file is valid
+        if (!file || !file.name) {
+          const error = new Error('Invalid file object');
+          console.error('Invalid file object', file);
+          alert('Invalid file selected. Please try again with a different file.');
+          reject(error);
+          return;
+        }
+
+        // Create a simple path to avoid path resolution issues
+        const safeFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+        const fileName = `posts/${Date.now()}_${safeFileName}`;
+        
+        console.log('Creating storage reference for path:', fileName);
+        try {
+          const storageRef = ref(storage, fileName);
+          
+          console.log('Starting upload task');
+          const uploadTask = uploadBytesResumable(storageRef, file);
+          
+          // Monitor upload progress
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              console.log('Upload progress:', progress);
+              setUploadProgress(progress);
+            },
+            (error) => {
+              console.error('Error during upload:', error);
+              // Show user-friendly error
+              switch (error.code) {
+                case 'storage/unauthorized':
+                  alert('You don\'t have permission to upload files.');
+                  break;
+                case 'storage/canceled':
+                  alert('Upload was canceled.');
+                  break;
+                case 'storage/unknown':
+                default:
+                  alert('An error occurred during upload. Please try again.');
+                  break;
+              }
+              reject(error);
+            },
+            async () => {
+              try {
+                // Get download URL after upload completes
+                console.log('Upload completed, getting download URL');
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                console.log('File uploaded successfully, URL:', downloadURL);
+                resolve(downloadURL);
+              } catch (urlError) {
+                console.error('Error getting download URL:', urlError);
+                alert('File uploaded but unable to get download URL. Please try again.');
+                reject(urlError);
+              }
+            }
+          );
+        } catch (refError) {
+          console.error('Error creating storage reference:', refError);
+          alert('Failed to initialize upload. Please try again later.');
+          reject(refError);
+        }
+      } catch (error) {
+        console.error('Error initiating upload:', error);
+        alert('Failed to start upload. Please try again.');
+        reject(error);
+      }
+    });
   };
 
   // Enhanced save edited post function
   const handleSaveEditedPost = async () => {
     try {
       const token = localStorage.getItem('accessToken');
+      const userId = localStorage.getItem('userId');
+      
+      if (!token || !userId) {
+        alert('You must be logged in to edit posts.');
+        return;
+      }
+      
       setUploadProgress(0);
       
-      let updatedMediaUrl = selectedPost.image || selectedPost.videoUrl || '';
-      let mediaType = selectedPost.videoUrl ? 'video' : 'image';
+      let updatedMediaUrl = selectedPost.image || selectedPost.video || '';
+      let mediaType = selectedPost.video ? 'video' : 'image';
+      let postType = selectedPost.postType || (selectedPost.video ? 'reel' : 'post');
       
       // If there's a new file to upload
       if (newFileUpload) {
         try {
-          // Upload the new file to Firebase
-          updatedMediaUrl = await uploadFileToFirebase(newFileUpload, selectedPost._id);
-          mediaType = uploadType;
+          // Validate file object
+          if (!newFileUpload || !newFileUpload.name) {
+            console.error('Invalid file object:', newFileUpload);
+            alert('Invalid file selected. Please try again with a different file.');
+            return;
+          }
+          
+          console.log('Preparing to upload file:', newFileUpload.name, 'type:', newFileUpload.type);
+          
+          // Try uploading to Firebase first
+          try {
+            updatedMediaUrl = await uploadFileToFirebase(newFileUpload, selectedPost._id);
+            mediaType = uploadType;
+            // Update postType based on media type
+            postType = mediaType === 'video' ? 'reel' : 'post';
+            console.log('Media uploaded successfully to Firebase:', updatedMediaUrl);
+          } catch (firebaseError) {
+            console.error('Firebase upload failed, trying fallback upload method:', firebaseError);
+            
+            // Fallback: Upload through backend API
+            try {
+              const formData = new FormData();
+              formData.append('media', newFileUpload);
+              formData.append('type', uploadType); // 'image' or 'video'
+              
+              const response = await axios.post(
+                `http://localhost:3080/uploads/media`,
+                formData,
+                {
+                  headers: { 
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                  },
+                  onUploadProgress: (progressEvent) => {
+                    const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    setUploadProgress(progress);
+                  }
+                }
+              );
+              
+              if (response.data && response.data.url) {
+                updatedMediaUrl = response.data.url;
+                console.log('Media uploaded successfully using fallback:', updatedMediaUrl);
+              } else {
+                throw new Error('No URL returned from fallback upload');
+              }
+            } catch (fallbackError) {
+              console.error('Fallback upload also failed:', fallbackError);
+              alert('Failed to upload media. Please try again later or use a different file.');
+              return;
+            }
+          }
         } catch (uploadError) {
           console.error('Failed to upload media:', uploadError);
           alert('Failed to upload new media. Please try again.');
@@ -942,16 +1179,23 @@ const ProfilePage = () => {
       
       // Prepare the update data
       const updateData = {
-        text: editedCaption
+        text: editedCaption,
+        userId: userId, // Ensure userId is included for authentication
+        postType: postType
       };
       
       // Add media information if we have it
       if (updatedMediaUrl) {
         if (mediaType === 'video') {
-          updateData.videoUrl = updatedMediaUrl;
-          updateData.image = selectedPost.thumbnail || '';
+          updateData.video = updatedMediaUrl;
+          // Create a thumbnail if needed
+          updateData.image = selectedPost.thumbnail || selectedPost.image || '';
         } else {
           updateData.image = updatedMediaUrl;
+          // If changing from video to image, remove video URL
+          if (selectedPost.video) {
+            updateData.video = null;
+          }
         }
       }
       
@@ -959,26 +1203,31 @@ const ProfilePage = () => {
       const response = await axios.patch(
         `http://localhost:3080/user/post/userpost/${selectedPost._id}/update`,
         updateData,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          } 
+        }
       );
       
       if (response.data && response.status === 200) {
         // Create updated post object
         const updatedPost = { 
           ...selectedPost, 
-          caption: editedCaption, 
-          text: editedCaption
+          text: editedCaption, 
+          postType: postType
         };
         
         // Add updated media URLs
         if (updatedMediaUrl) {
           if (mediaType === 'video') {
-            updatedPost.videoUrl = updatedMediaUrl;
+            updatedPost.video = updatedMediaUrl;
           } else {
             updatedPost.image = updatedMediaUrl;
             // If changing from video to image, remove video URL
-            if (selectedPost.videoUrl) {
-              updatedPost.videoUrl = null;
+            if (selectedPost.video) {
+              updatedPost.video = null;
             }
           }
         }
@@ -1001,15 +1250,13 @@ const ProfilePage = () => {
         localStorage.setItem('cachedSavedPosts', JSON.stringify(updatedSavedPosts));
         
         // Reset file upload state
-        setNewFileUpload(null);
-        setUploadPreview('');
-        setUploadProgress(0);
-        setUploadType('');
+        resetFileUpload();
         
         // Exit edit mode
         setEditPostMode(false);
         
         console.log('Post updated successfully:', response.data);
+        alert('Post updated successfully!');
       } else {
         console.error('Failed to update post:', response);
         alert('Failed to update post. Please try again.');
@@ -1019,8 +1266,24 @@ const ProfilePage = () => {
       if (error.response) {
         console.error('Response data:', error.response.data);
         console.error('Response status:', error.response.status);
+        
+        // Handle specific error cases
+        switch (error.response.status) {
+          case 401:
+            alert('Your session has expired. Please log in again.');
+            break;
+          case 403:
+            alert('You do not have permission to edit this post.');
+            break;
+          case 404:
+            alert('Post not found.');
+            break;
+          default:
+            alert('An error occurred while updating the post. Please try again.');
+        }
+      } else {
+        alert('Network error. Please check your connection and try again.');
       }
-      alert('An error occurred while updating the post. Please try again.');
     }
   };
 
@@ -1032,7 +1295,7 @@ const ProfilePage = () => {
     
     // Set the post as selected and show the edit modal
     setSelectedPost(post);
-    setEditedCaption(post.caption || '');
+    setEditedCaption(post.text || '');
     setEditPostMode(true);
     setShowPostModal(true);
   };
@@ -1217,11 +1480,11 @@ const ProfilePage = () => {
                 ) : selectedPost.image ? (
                   <img 
                     src={selectedPost.image} 
-                    alt={selectedPost.caption || 'Post'} 
+                    alt={selectedPost.text || 'Post'} 
                   />
                 ) : (
                   <div className="text-post-modal">
-                    <p>{selectedPost.caption}</p>
+                    <p>{selectedPost.text || selectedPost.caption || 'No caption'}</p>
                   </div>
                 )}
               </div>
@@ -1288,11 +1551,19 @@ const ProfilePage = () => {
                           onChange={handleFileChange}
                           ref={fileInputRef}
                           style={{ display: 'none' }}
+                          id="media-file-upload"
                         />
                         <button 
                           type="button" 
                           className="change-media-button"
-                          onClick={() => fileInputRef.current.click()}
+                          onClick={() => {
+                            if (fileInputRef.current) {
+                              fileInputRef.current.click();
+                            } else {
+                              console.error('File input reference is not available');
+                              alert('Could not open file selector. Please try again.');
+                            }
+                          }}
                         >
                           <Upload size={16} />
                           Change {selectedPost.videoUrl ? 'Video' : selectedPost.image ? 'Image' : 'Media'}
@@ -1319,12 +1590,7 @@ const ProfilePage = () => {
                       
                       <div className="edit-caption-actions">
                         <button 
-                          onClick={() => {
-                            setEditPostMode(false);
-                            setNewFileUpload(null);
-                            setUploadPreview('');
-                            setUploadProgress(0);
-                          }}
+                          onClick={toggleEditMode}
                           className="cancel-edit-button"
                         >
                           Cancel
@@ -1339,7 +1605,7 @@ const ProfilePage = () => {
                       </div>
                     </div>
                   ) : (
-                    <p>{selectedPost.caption}</p>
+                    <p>{selectedPost.text || selectedPost.caption || 'No caption'}</p>
                   )}
                 </div>
                 
@@ -1383,7 +1649,7 @@ const ProfilePage = () => {
                     <strong>{selectedPost.likes?.length || 0} likes</strong>
                   </div>
                   <div className="post-date">
-                    {formatDate(selectedPost.createdAt)}
+                    {formatDate(selectedPost.date || selectedPost.createdAt)}
                   </div>
                 </div>
                 

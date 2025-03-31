@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Heart, MessageCircle, Share2, Bookmark, Edit, Check, MoreHorizontal, Trash2, X } from 'lucide-react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import '../styles/Posts.css';
 
 const Posts = ({ posts: initialPosts, user }) => {
@@ -11,6 +12,7 @@ const Posts = ({ posts: initialPosts, user }) => {
   const [showOptions, setShowOptions] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const optionsRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (initialPosts && initialPosts.length > 0) {
@@ -220,12 +222,12 @@ const Posts = ({ posts: initialPosts, user }) => {
     const currentPost = posts.find(post => post._id === postId);
     const currentIsLiked = currentPost?.isLiked || false;
     const currentLikes = currentPost?.likes || 0;
+    const newIsLiked = !currentIsLiked;
 
     // Optimistic update: toggle like state and adjust likes count.
     setPosts(prevPosts =>
       prevPosts.map(post => {
         if (post._id === postId) {
-          const newIsLiked = !post.isLiked;
           const newLikes = newIsLiked ? (post.likes || 0) + 1 : Math.max((post.likes || 0) - 1, 0);
           return { ...post, isLiked: newIsLiked, likes: newLikes };
         }
@@ -233,87 +235,102 @@ const Posts = ({ posts: initialPosts, user }) => {
       })
     );
 
-    const endpoint = `http://localhost:3080/user/${userId}/post/userpost/${postId}/like`;
+    // Update localStorage immediately - we'll keep the optimistic update even if API fails
     try {
-      const response = await axios.post(endpoint, null, { headers: authHeaders() });
-      
-      // Update UI with backend values.
-      setPosts(prevPosts =>
-        prevPosts.map(post => {
-          if (post._id === postId) {
-            return { 
-              ...post, 
-              isLiked: response.data.isLiked, 
-              likes: response.data.likes 
-            };
-          }
-          return post;
-        })
-      );
-      
-      // Store both like status AND count in localStorage
       const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '{}');
-      likedPosts[postId] = response.data.isLiked;
+      likedPosts[postId] = newIsLiked;
       localStorage.setItem('likedPosts', JSON.stringify(likedPosts));
       
       const likeCounts = JSON.parse(localStorage.getItem('postLikeCounts') || '{}');
-      likeCounts[postId] = response.data.likes;
+      likeCounts[postId] = newIsLiked ? currentLikes + 1 : Math.max(currentLikes - 1, 0);
       localStorage.setItem('postLikeCounts', JSON.stringify(likeCounts));
-      
+    } catch (localStorageError) {
+      console.error('Error updating localStorage:', localStorageError);
+    }
+
+    // Try API update but don't revert UI on failure
+    try {
+      const endpoint = `http://localhost:3080/user/${userId}/post/userpost/${postId}/like`;
+      await axios.post(endpoint, null, { headers: authHeaders() });
+      console.log('Like update synced with server');
     } catch (error) {
-      console.error('Error toggling like:', error);
-      // Revert optimistic update on error.
-      setPosts(prevPosts =>
-        prevPosts.map(post =>
-          post._id === postId ? { 
-            ...post, 
-            isLiked: currentIsLiked, 
-            likes: currentLikes 
-          } : post
-        )
-      );
+      console.error('Warning: Like update failed on server but UI was updated:', error);
     }
   };
 
-  // Toggle save status
+  // Navigate to user profile when username is clicked
+  const handleUserProfileClick = (userId, e) => {
+    e.stopPropagation();
+    if (userId) {
+      navigate(`/profile/${userId}`);
+    }
+  };
+
+  // Toggle save for a post
   const toggleSave = async (e, postId) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Get current state
+    const userId = user?._id || localStorage.getItem('userId');
+    if (!userId) {
+      console.error('User ID not found.');
+      return;
+    }
+
+    // Get current state before updating
     const currentPost = posts.find(post => post._id === postId);
     const currentIsSaved = currentPost?.isSaved || false;
     const newIsSaved = !currentIsSaved;
 
     // Optimistic update
     setPosts(prevPosts =>
-      prevPosts.map(post =>
-        post._id === postId ? { ...post, isSaved: newIsSaved } : post
-      )
+      prevPosts.map(post => {
+        if (post._id === postId) {
+          return { ...post, isSaved: newIsSaved };
+        }
+        return post;
+      })
     );
 
+    // Update localStorage immediately - we'll keep the optimistic update even if API fails
     try {
-      // Update in localStorage
       const savedPosts = JSON.parse(localStorage.getItem('savedPosts') || '{}');
       savedPosts[postId] = newIsSaved;
       localStorage.setItem('savedPosts', JSON.stringify(savedPosts));
+    } catch (localStorageError) {
+      console.error('Error updating localStorage:', localStorageError);
+    }
+
+    // Try API update but don't revert UI on failure
+    try {
+      const endpoint = `http://localhost:3080/user/post/${userId}/${postId}/save`;
+      await axios.post(endpoint, null, { headers: authHeaders() });
       
-      // If we had a backend endpoint for saving posts, we'd call it here
-      // Example:
-      // const response = await axios.post(
-      //  `http://localhost:3080/user/post/${postId}/save`,
-      //  { saved: newIsSaved },
-      //  { headers: authHeaders() }
-      // );
+      // After successful save, update the cachedFeedPosts to reflect this change
+      const cachedFeedPosts = JSON.parse(localStorage.getItem('cachedFeedPosts') || '[]');
+      const updatedFeedPosts = cachedFeedPosts.map(post => {
+        if (post._id === postId) {
+          return { ...post, isSaved: newIsSaved };
+        }
+        return post;
+      });
+      localStorage.setItem('cachedFeedPosts', JSON.stringify(updatedFeedPosts));
       
+      // Also update any cached user profile posts if they exist
+      const cachedProfilePosts = JSON.parse(localStorage.getItem('cachedPosts') || '[]');
+      if (cachedProfilePosts.length > 0) {
+        const updatedProfilePosts = cachedProfilePosts.map(post => {
+          if (post._id === postId) {
+            return { ...post, isSaved: newIsSaved };
+          }
+          return post;
+        });
+        localStorage.setItem('cachedPosts', JSON.stringify(updatedProfilePosts));
+      }
+      
+      console.log('Save update synced with server');
     } catch (error) {
-      console.error('Error toggling save:', error);
-      // Revert optimistic update on error.
-      setPosts(prevPosts =>
-        prevPosts.map(post =>
-          post._id === postId ? { ...post, isSaved: !newIsSaved } : post
-        )
-      );
+      console.error('Warning: Save update failed on server but UI was updated:', error);
     }
   };
 
@@ -341,18 +358,45 @@ const Posts = ({ posts: initialPosts, user }) => {
         const savedPosts = JSON.parse(localStorage.getItem('savedPosts') || '{}');
         
         setPosts(prevPosts =>
-          prevPosts.map(post => ({
-            ...post,
-            isLiked: post.isLiked || Boolean(likedPosts[post._id]),
-            likes: post.likes || likeCounts[post._id] || 0,
-            isSaved: post.isSaved || Boolean(savedPosts[post._id])
-          }))
+          prevPosts.map(post => {
+            // Get the latest state, prioritizing explicit settings from saved/liked state
+            const isLiked = likedPosts[post._id] !== undefined ? likedPosts[post._id] : post.isLiked;
+            const isSaved = savedPosts[post._id] !== undefined ? savedPosts[post._id] : post.isSaved;
+            
+            // Get like count, preferring explicitly stored counts
+            const likeCount = likeCounts[post._id] !== undefined ? likeCounts[post._id] : post.likes || 0;
+            
+            return {
+              ...post,
+              isLiked,
+              isSaved,
+              likes: likeCount
+            };
+          })
         );
       } catch (error) {
         console.error('Error initializing from localStorage:', error);
       }
     }
   }, [posts.length]);
+
+  const getLikesDisplay = (post) => {
+    let likesCount = 0;
+    
+    if (Array.isArray(post.likes)) {
+      likesCount = post.likes.length;
+    } else if (typeof post.likes === 'number') {
+      likesCount = post.likes;
+    }
+    
+    if (likesCount === 0) {
+      return 'Be the first to like this';
+    } else if (likesCount === 1) {
+      return '1 like';
+    } else {
+      return `${likesCount} likes`;
+    }
+  };
 
   return (
     <div className="instagram-feed-grid">
@@ -361,7 +405,7 @@ const Posts = ({ posts: initialPosts, user }) => {
           <article key={post._id} className="instagram-post">
             {/* Post Header */}
             <header className="post-header">
-              <div className="user-info">
+              <div className="user-info" onClick={(e) => handleUserProfileClick(post.user?._id, e)}>
                 <div className="avatar-container">
                   <img
                     src={post.user?.avatar || user?.avatar || '/default-avatar.png'}
@@ -458,7 +502,7 @@ const Posts = ({ posts: initialPosts, user }) => {
             </div>
 
             <div className="likes-count">
-              {post.likes > 0 ? `${post.likes} ${post.likes === 1 ? 'like' : 'likes'}` : 'Be the first to like this'}
+              {getLikesDisplay(post)}
             </div>
 
             <div className="post-caption">
@@ -491,7 +535,12 @@ const Posts = ({ posts: initialPosts, user }) => {
                 </div>
               ) : (
                 <div className="caption-text">
-                  <span className="username">{post.user?.name || user?.name || 'User'}</span>
+                  <span 
+                    className="username" 
+                    onClick={(e) => handleUserProfileClick(post.user?._id, e)}
+                  >
+                    {post.user?.name || user?.name || 'User'}
+                  </span>
                   <span className="caption-content">{post.text || ''}</span>
                 </div>
               )}
@@ -508,7 +557,7 @@ const Posts = ({ posts: initialPosts, user }) => {
 
             {/* Date */}
             <div className="post-date">
-              {new Date(post.date).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}
+              {new Date(post.date || post.createdAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}
             </div>
           </article>
         ))

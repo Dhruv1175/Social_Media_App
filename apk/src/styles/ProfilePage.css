@@ -502,14 +502,74 @@
   color: #ed4956;
 }
 
+/* Post Modal Caption */
 .post-modal-caption {
-  padding: 16px;
-  border-bottom: 1px solid #efefef;
+  padding: 15px;
   max-height: 200px;
   overflow-y: auto;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.post-modal-caption p {
+  font-size: 15px;
+  line-height: 1.4;
+  margin: 0;
+  white-space: pre-wrap;
   color: #262626;
+}
+
+/* Post Date Styling */
+.post-date {
+  font-size: 12px;
+  color: #8e8e8e;
+  margin-top: 8px;
+  font-weight: 500;
+  padding: 0 15px;
+}
+
+/* Text Post in Grid */
+.text-post-grid {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background-color: #f5f5f5;
+  overflow: hidden;
+}
+
+.text-post-grid p {
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.4;
+  color: #262626;
+  text-align: center;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 6; /* Limit to 6 lines */
+  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+}
+
+/* Text Post in Modal */
+.text-post-modal {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  background-color: #f9f9f9;
+  border: 1px solid #e0e0e0;
+}
+
+.text-post-modal p {
+  font-size: 18px;
+  line-height: 1.6;
+  color: #262626;
+  text-align: center;
+  max-width: 80%;
+  white-space: pre-wrap;
 }
 
 .edit-caption-container {
@@ -597,11 +657,6 @@
 .post-likes {
   font-size: 14px;
   margin-bottom: 8px;
-}
-
-.post-date {
-  font-size: 12px;
-  color: #8e8e8e;
 }
 
 .post-comments-section {
@@ -1219,30 +1274,6 @@
   color: white;
 }
 
-.text-post-grid {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: #f0f0f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  overflow: hidden;
-}
-
-.text-post-grid p {
-  font-size: 16px;
-  text-align: center;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  color: #262626;
-}
-
 /* Post Grid Options */
 .post-grid-options {
   position: absolute;
@@ -1489,4 +1520,48 @@
 .save-edit-button:disabled {
   background-color: #b2dffc;
   cursor: not-allowed;
+}
+
+/* Post Grid Info (Date only) */
+.post-grid-info {
+  position: absolute;
+  bottom: 60px;
+  left: 0;
+  width: 100%;
+  padding: 5px 10px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  text-align: right;
+}
+
+.post-grid-item:hover .post-grid-info {
+  opacity: 1;
+}
+
+.post-grid-date {
+  font-size: 11px;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* Post Overlay */
+.post-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.post-grid-item:hover .post-overlay {
+  opacity: 1;
 }

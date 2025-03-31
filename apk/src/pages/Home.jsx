@@ -5,10 +5,11 @@ import Posts from '../components/Post';
 import Story from '../components/Story';
 import '../styles/Home.css';
 
-function Home1() {
+function Home() {
   const [posts, setPosts] = useState([]);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Fetch data from the database
   useEffect(() => {
@@ -24,6 +25,24 @@ function Home1() {
 
         const headers = { Authorization: `Bearer ${token}` };
 
+        // First, check for cached data for faster initial load
+        const cachedPosts = localStorage.getItem('cachedFeedPosts');
+        const cachedUser = localStorage.getItem('cachedUser');
+        const savedPostsMap = JSON.parse(localStorage.getItem('savedPosts') || '{}');
+        
+        if (cachedPosts && cachedUser) {
+          // Apply any saved posts states that might have changed
+          const parsedPosts = JSON.parse(cachedPosts);
+          const updatedPosts = parsedPosts.map(post => ({
+            ...post,
+            isSaved: savedPostsMap[post._id] === true ? true : post.isSaved
+          }));
+          
+          setPosts(updatedPosts);
+          setUser(JSON.parse(cachedUser));
+          setLoading(false);
+        }
+
         // Fetch posts for feed
         const postsResponse = await axios.get(
           `http://localhost:3080/user/post/${userId}/feed`,
@@ -36,12 +55,90 @@ function Home1() {
           { headers }
         );
 
-        setPosts(postsResponse.data.posts || []);
+        // Fetch user likes
+        const likesResponse = await axios.get(
+          `http://localhost:3080/user/${userId}/likes`,
+          { headers }
+        );
+
+        // Fetch saved posts list
+        let savedPosts = [];
+        try {
+          const savedPostsResponse = await axios.get(
+            `http://localhost:3080/user/post/${userId}/saved`,
+            { headers }
+          );
+          if (savedPostsResponse.data && savedPostsResponse.data.success) {
+            savedPosts = savedPostsResponse.data.saved || [];
+          }
+        } catch (error) {
+          console.error('Error fetching saved posts:', error);
+          // Continue without saved posts data
+        }
+
+        // Create a map of saved post IDs for quicker lookup
+        const savedPostIds = new Set(savedPosts.map(post => post._id));
+        
+        // Process posts to include the right properties for the Posts component
+        const likedPostIds = likesResponse.data?.likedPosts 
+          ? new Set(likesResponse.data.likedPosts.map(post => post._id)) 
+          : new Set();
+
+        const processedPosts = (postsResponse.data.posts || []).map(post => {
+          // Check if the current user is in the likes array (if it exists)
+          const isLiked = Array.isArray(post.likes) 
+            ? post.likes.includes(userId) 
+            : likedPostIds.has(post._id);
+
+          // Check if post is saved by current user - use both backend data and localStorage
+          const isSaved = savedPostIds.has(post._id) || savedPostsMap[post._id] === true;
+
+          return {
+            ...post,
+            isLiked,
+            isSaved,
+            // Ensure likes is a number if it's an array of user IDs
+            likes: Array.isArray(post.likes) ? post.likes.length : post.likes || 0,
+          };
+        });
+
+        setPosts(processedPosts);
         setUser(userResponse.data.exist || null);
         setLoading(false);
+
+        // Save processed data to localStorage
+        localStorage.setItem('cachedFeedPosts', JSON.stringify(processedPosts));
+        localStorage.setItem('cachedUser', JSON.stringify(userResponse.data.exist || null));
+        
+        // Also update saved posts in localStorage to sync with backend
+        const updatedSavedPostsMap = {};
+        savedPosts.forEach(post => {
+          updatedSavedPostsMap[post._id] = true;
+        });
+        localStorage.setItem('savedPosts', JSON.stringify({...savedPostsMap, ...updatedSavedPostsMap}));
+        
       } catch (error) {
         console.error('Error fetching data:', error);
+        setError('Failed to load your feed. Please try again later.');
         setLoading(false);
+        
+        // Try to load cached data if available
+        const cachedPosts = localStorage.getItem('cachedFeedPosts');
+        const cachedUser = localStorage.getItem('cachedUser');
+        
+        if (cachedPosts && cachedUser) {
+          // Still apply saved states from localStorage if available
+          const parsedPosts = JSON.parse(cachedPosts);
+          const savedPostsMap = JSON.parse(localStorage.getItem('savedPosts') || '{}');
+          
+          const updatedPosts = parsedPosts.map(post => ({
+            ...post,
+            isSaved: savedPostsMap[post._id] === true ? true : post.isSaved
+          }));
+          
+          setPosts(updatedPosts);
+          setUser(JSON.parse(cachedUser));
+        }
       }
     };
 
@@ -51,7 +148,19 @@ function Home1() {
   if (loading) {
     return (
       <div className="loading-container">
-        <p>Loading...</p>
+        <div className="loading-spinner"></div>
+        <p>Loading your feed...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="error-container">
+        <p>{error}</p>
+        <button onClick={() => window.location.reload()} className="retry-button">
+          Retry
+        </button>
       </div>
     );
   }
@@ -73,12 +182,18 @@ function Home1() {
               <div className="no-posts">
                 <h3>No posts yet</h3>
                 <p>Follow users to see their posts in your feed</p>
+                <button 
+                  onClick={() => window.location.href = '/search'}
+                  className="find-users-button"
+                >
+                  Find users to follow
+                </button>
               </div>
             )}
           </div>
         </div>
         
-        {/* Suggestions Section (can be implemented later) */}
+        {/* Suggestions Section */}
         <div className="suggestions-sidebar">
           {/* User profile summary */}
           {user && (
@@ -100,7 +215,7 @@ function Home1() {
           {/* Suggestions placeholder */}
           <div className="suggestions-header">
             <span>Suggestions For You</span>
-            <a href="#">See All</a>
+            <a href="/search">See All</a>
           </div>
           
           <div className="suggestions-placeholder">
@@ -117,7 +232,7 @@ function Home1() {
           </div>
           
           <div className="copyright">
-            © 2023 Rizzit
+            © 2023 Social Media App
           </div>
         </div>
       </main>
@@ -125,4 +240,4 @@ function Home1() {
   );
 }
 
-export default Home1;
+export default Home;

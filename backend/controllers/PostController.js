@@ -7,8 +7,14 @@ import likemodel from "../models/LikeModel.js"
 export const createPost = async(req,res)=>{
     try{
         const {userid} = req.params
-        const{text,image,video} = req.body
-        const post = new postmodel({user:userid,text:text,image:image,video:video})
+        const{text,image,video,postType} = req.body
+        const post = new postmodel({
+            user:userid,
+            text:text,
+            image:image,
+            video:video,
+            postType:postType || (video ? 'reel' : 'post') // Default based on content if not specified
+        })
         await post.save()
         if(post){
             res.status(200).send({message:"Post uploaded Successfully",success:true})

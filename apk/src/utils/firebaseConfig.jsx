@@ -1,9 +1,9 @@
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getStorage } from "firebase/storage";
 
+// Firebase configuration
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_API_KEY,
+  apiKey: "AIzaSyC3HpuPiilVJVuwM4-j6vxpkQXtDY-K250",
   authDomain: "practice-70fb0.firebaseapp.com",
   projectId: "practice-70fb0",
   storageBucket: "practice-70fb0.appspot.com",
@@ -12,6 +12,24 @@ const firebaseConfig = {
   measurementId: "G-6KGGWRPNT1"
 };
 
-export const firebaseApp = initializeApp(firebaseConfig);
-export const storage = getStorage(firebaseApp);
+// Initialize Firebase
+let firebaseApp = null;
+let storage = null;
+
+try {
+  console.log('Initializing Firebase with config:', JSON.stringify({
+    projectId: firebaseConfig.projectId,
+    storageBucket: firebaseConfig.storageBucket
+  }));
+  
+  firebaseApp = initializeApp(firebaseConfig);
+  storage = getStorage(firebaseApp);
+  
+  console.log('Firebase storage initialized successfully');
+} catch (error) {
+  console.error('Firebase initialization failed:', error);
+  // Variables already initialized as null
+}
+
+export { firebaseApp, storage };
 export default firebaseApp;
