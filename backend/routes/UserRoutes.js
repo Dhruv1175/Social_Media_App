@@ -4,7 +4,7 @@ import { getUserProfile, loginUser, registerUser, updateProfile } from "../contr
 import { createPost, deletePost, deleteSavedPost, feed, getOnePost, getAllPost, getSavedPost, getUserPost, savedPost, updatePost, getLikeCounts } from "../controllers/PostController.js";
 import { addComment, deleteComment, getComment, updateComment } from "../controllers/CommentController.js";
 import { toggleLikeComment, toggleLikePost, getUserLikes } from "../controllers/LikeController.js";
-import { getFollow, getFollowing, toggleFollow, getAllFollowRelationships } from "../controllers/FollowController.js";
+import { getFollow, getFollowing, toggleFollow, getAllFollowRelationships, checkFollowStatus } from "../controllers/FollowController.js";
 import { markAllNotificationsAsRead } from "../controllers/NotificationController.js";
 import { DirectMessage, getMessage, sendMessage } from "../controllers/MessageController.js";
 import { searchPosts, searchUser } from "../controllers/SearchControllers.js";
@@ -46,6 +46,7 @@ route.post("/user/:userid/:followid/unfollow", toggleFollow);
 route.get("/user/:userid/followers", getFollow);
 route.get("/user/:userid/following", getFollowing);
 route.get("/follows/all", getAllFollowRelationships);
+route.get("/follows/check/:userid/:followid", checkFollowStatus);
 
 //notification action routes
 route.get("/user/:userid/notification",verifyToken,markAllNotificationsAsRead)

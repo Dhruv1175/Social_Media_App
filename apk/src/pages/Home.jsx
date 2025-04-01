@@ -4,12 +4,14 @@ import Sidebar from '../components/Sidebar';
 import Posts from '../components/Post';
 import Story from '../components/Story';
 import '../styles/Home.css';
+import { useNavigate } from 'react-router-dom';
 
 function Home() {
   const [posts, setPosts] = useState([]);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   // Fetch data from the database
   useEffect(() => {
@@ -19,7 +21,7 @@ function Home() {
         const userId = localStorage.getItem('userId');
 
         if (!token || !userId) {
-          window.location.href = '/';
+          navigate('/login');
           return;
         }
 
@@ -143,7 +145,7 @@ function Home() {
     };
 
     fetchData();
-  }, []);
+  }, [navigate]);
 
   if (loading) {
     return (
@@ -168,7 +170,7 @@ function Home() {
   return (
     <div className="home-container">
       <Sidebar user={user} />
-      
+
       <main className="main-content">
         <div className="content-container">
           {/* Stories Section */}
@@ -183,7 +185,7 @@ function Home() {
                 <h3>No posts yet</h3>
                 <p>Follow users to see their posts in your feed</p>
                 <button 
-                  onClick={() => window.location.href = '/search'}
+                  onClick={() => navigate('/search')}
                   className="find-users-button"
                 >
                   Find users to follow
@@ -229,8 +231,8 @@ function Home() {
             <a href="#">API</a> · 
             <a href="#">Privacy</a> · 
             <a href="#">Terms</a>
-          </div>
-          
+        </div>
+
           <div className="copyright">
             © 2023 Social Media App
           </div>

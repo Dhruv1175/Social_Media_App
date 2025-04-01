@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/Sidebar';
-import { Grid, Bookmark, User, ArrowLeft, MoreHorizontal, Edit, Trash2, Heart, MessageCircle, Share2 } from 'lucide-react';
+import { Grid, Bookmark, User, MoreHorizontal, Edit, Trash2, Heart, MessageCircle, Share2, X } from 'lucide-react';
 import '../styles/UserProfilePage.css';
 
 // PostOptions component to better handle options menu
@@ -147,28 +147,31 @@ const UserProfilePage = () => {
 
         setProfileUser(profileResponse.data.exist);
         
-        // First check in localStorage if we're already following this user
-        const followedUsers = JSON.parse(localStorage.getItem('followedUsers') || '[]');
-        const isAlreadyFollowing = followedUsers.includes(userId);
+        // First check session storage for this specific follow relationship
+        const sessionFollowKey = `follow_status_${currentUserId}_${userId}`;
+        const sessionFollowStatus = sessionStorage.getItem(sessionFollowKey);
         
-        // If found in localStorage, use that state directly
-        if (isAlreadyFollowing) {
-          setIsFollowing(true);
-        } 
-        // Otherwise, check from the API response
-        else if (profileResponse.data.exist && profileResponse.data.exist.followers) {
-          const isFollowing = profileResponse.data.exist.followers.some(
-            followerObj => followerObj?.follower?._id === currentUserId
-          );
-          setIsFollowing(isFollowing);
+        if (sessionFollowStatus !== null) {
+          // Use cached follow status as initial state
+          const followStatusFromSession = sessionFollowStatus === 'true';
+          console.log(`Retrieved follow status from session: ${followStatusFromSession}`);
+          setIsFollowing(followStatusFromSession);
+        } else {
+          // Check if current user is following this profile from server data
+          const isFollowingFromServer = profileResponse.data.exist.followers?.some(
+            followerObj => followerObj?.follower?._id === currentUserId ||
+                          followerObj?._id === currentUserId
+          ) || false;
           
-          // If we are following but it's not in localStorage, update localStorage
-          if (isFollowing && !isAlreadyFollowing) {
-            followedUsers.push(userId);
-            localStorage.setItem('followedUsers', JSON.stringify(followedUsers));
-          }
+          // Set following state based on server data
+          setIsFollowing(isFollowingFromServer);
+          console.log('Initial follow status from server:', isFollowingFromServer);
+          
+          // Save to session storage for persistence
+          sessionStorage.setItem(sessionFollowKey, isFollowingFromServer.toString());
         }
         
+        // Update followers count
         setFollowersCount(profileResponse.data.exist.followers?.length || 0);
 
         // Fetch user posts - make sure we're using the right endpoint
@@ -218,88 +221,183 @@ const UserProfilePage = () => {
         return;
       }
 
-      // Get the current followed users list
-      const followedUsers = JSON.parse(localStorage.getItem('followedUsers') || '[]');
+      // Always include authentication headers
+      const headers = { Authorization: `Bearer ${token}` };
       
-      if (isFollowing) {
-        // UNFOLLOW - no authentication needed
+      // Use the correct API endpoint formats from the backend routes
+      const endpoint = isFollowing 
+        ? `http://localhost:3080/user/${currentUserId}/${profileUser._id}/unfollow`
+        : `http://localhost:3080/user/${currentUserId}/${profileUser._id}/follow`;
+      
+      console.log(`Using endpoint: ${endpoint} for ${isFollowing ? 'unfollow' : 'follow'} action`);
+      
+      // Create session storage key for this follow relationship
+      const sessionFollowKey = `follow_status_${currentUserId}_${profileUser._id}`;
+      
+      // Optimistically update UI
+      const originalFollowStatus = isFollowing;
+      const newFollowStatus = !isFollowing;
+      
+      setIsFollowing(newFollowStatus);
+      // Update session storage immediately for persistence
+      sessionStorage.setItem(sessionFollowKey, newFollowStatus.toString());
+      
+      setFollowersCount(prev => originalFollowStatus ? Math.max(0, prev - 1) : prev + 1);
+      
+      try {
+        // Make the API call with correct endpoint and empty body (as per backend implementation)
         const response = await axios.post(
-          `http://localhost:3080/user/${currentUserId}/${profileUser._id}/unfollow`,
-          {} // No need for authentication headers
-        );
-
-        if (response.data.success) {
-          // Reset unfollow confirmation
-          setShowUnfollowConfirm(false);
-          
-          // Update UI immediately
-          setIsFollowing(false);
-          
-          // Update followers count
-          setFollowersCount(followersCount - 1);
-          
-          // Remove from localStorage
-          const updatedFollowedUsers = followedUsers.filter(id => id !== profileUser._id);
-          localStorage.setItem('followedUsers', JSON.stringify(updatedFollowedUsers));
-          
-          // Update the followers list in profileUser
-          const updatedProfileUser = {...profileUser};
-          if (updatedProfileUser.followers) {
-            updatedProfileUser.followers = updatedProfileUser.followers.filter(
-              f => !(f.follower && f.follower._id === currentUserId)
-            );
-            setProfileUser(updatedProfileUser);
-          }
-        }
-      } else {
-        // FOLLOW - requires authentication
-        const headers = { Authorization: `Bearer ${token}` };
-        
-        const response = await axios.post(
-          `http://localhost:3080/user/${currentUserId}/${profileUser._id}/follow`,
-          {},
+          endpoint,
+          {}, // Empty body as the backend uses route parameters
           { headers }
         );
 
-        if (response.data.success) {
-          // Update UI immediately
-          setIsFollowing(true);
-          
-          // Update followers count
-          setFollowersCount(followersCount + 1);
-          
-          // Add to localStorage
-          if (!followedUsers.includes(profileUser._id)) {
-            followedUsers.push(profileUser._id);
-            localStorage.setItem('followedUsers', JSON.stringify(followedUsers));
+        // Log the response for debugging
+        console.log('Follow/unfollow API response:', response.data);
+
+        // If response is successful, update the profile user object
+        if (response.data && response.data.success) {
+          // Reset unfollow confirmation if it was an unfollow action
+          if (originalFollowStatus) {
+            setShowUnfollowConfirm(false);
           }
           
-          // Update the followers list in profileUser
-          const updatedProfileUser = {...profileUser};
-          if (!updatedProfileUser.followers) {
-            updatedProfileUser.followers = [];
+          console.log(`Successfully ${originalFollowStatus ? 'unfollowed' : 'followed'} user.`);
+          
+          // Manually set the follow state based on the action we just performed
+          setIsFollowing(newFollowStatus);
+          sessionStorage.setItem(sessionFollowKey, newFollowStatus.toString());
+          
+          // Create a small delay before refreshing data to let the database update
+          setTimeout(() => fetchFollowStatus(), 500);
+        } else {
+          // If the server returned success:false, revert the optimistic updates
+          console.error('Follow/unfollow action failed:', response.data);
+          setIsFollowing(originalFollowStatus);
+          // Update session storage with reverted state
+          sessionStorage.setItem(sessionFollowKey, originalFollowStatus.toString());
+          
+          setFollowersCount(prev => originalFollowStatus ? prev + 1 : Math.max(0, prev - 1));
+          throw new Error(response.data.message || 'Failed to update follow status');
+        }
+      } catch (error) {
+        console.error('Follow/unfollow request failed:', error);
+        
+        // Revert UI state to what it was before the optimistic update
+        setIsFollowing(originalFollowStatus);
+        // Update session storage with reverted state
+        sessionStorage.setItem(sessionFollowKey, originalFollowStatus.toString());
+        
+        setFollowersCount(prev => originalFollowStatus ? prev + 1 : Math.max(0, prev - 1));
+        
+        setFollowError(true);
+        
+        // Display the specific error message from the backend
+        if (error.response && error.response.data && error.response.data.message) {
+          alert(error.response.data.message);
+        } else {
+          alert(error.message || 'Failed to follow/unfollow. Please try again.');
+        }
+        
+        // Always fetch fresh follow data from server to ensure UI is in sync
+        setTimeout(() => fetchFollowStatus(), 500);
+      }
+    } catch (error) {
+      console.error('Error in follow/unfollow process:', error);
+      setFollowError(true);
+      alert('Error processing your request. Please try again.');
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  // Function to fetch follow status directly from the server
+  const fetchFollowStatus = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const currentUserId = localStorage.getItem('userId');
+      
+      if (!token || !currentUserId || !profileUser?._id) return;
+      
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      console.log('Fetching fresh follow status from server');
+      
+      // Get fresh followers data
+      const followersResponse = await axios.get(
+        `http://localhost:3080/user/${profileUser._id}/followers`,
+        { headers }
+      );
+      
+      let isUserFollowing = false;
+      
+      if (followersResponse.data && followersResponse.data.success) {
+        // Check if current user is in the followers list
+        isUserFollowing = followersResponse.data.followdetails.some(
+          f => (f.follower && f.follower._id === currentUserId) || f._id === currentUserId
+        );
+        
+        console.log('Followers check result:', followersResponse.data.followdetails.length, 'followers');
+        console.log('Current user in followers list:', isUserFollowing);
+      }
+      
+      // Also get fresh profile data as a backup check
+      const profileResponse = await axios.get(
+        `http://localhost:3080/user/profile/${profileUser._id}`,
+        { headers }
+      );
+      
+      if (profileResponse.data && profileResponse.data.exist) {
+        const updatedProfileUser = profileResponse.data.exist;
+        
+        // Update followers count
+        setFollowersCount(updatedProfileUser.followers?.length || 0);
+        
+        // If we didn't find the user in the followers list, try the profile data
+        if (!isUserFollowing && updatedProfileUser.followers) {
+          isUserFollowing = updatedProfileUser.followers.some(
+            f => (f.follower && f.follower._id === currentUserId) || f._id === currentUserId
+          );
+          console.log('Profile followers check result:', isUserFollowing);
+        }
+        
+        // Update following state
+        setIsFollowing(isUserFollowing);
+        
+        // Update session storage with current follow status
+        const sessionFollowKey = `follow_status_${currentUserId}_${profileUser._id}`;
+        sessionStorage.setItem(sessionFollowKey, isUserFollowing.toString());
+        
+        // Also update the profile user in state
+        setProfileUser(updatedProfileUser);
+        
+        console.log('Follow status refreshed from server:', isUserFollowing);
+      }
+      
+      // As a final failsafe, directly check the follow relationship
+      if (!isUserFollowing) {
+        try {
+          const directCheckResponse = await axios.get(
+            `http://localhost:3080/follows/check/${currentUserId}/${profileUser._id}`,
+            { headers }
+          );
+          
+          if (directCheckResponse.data && directCheckResponse.data.isFollowing) {
+            isUserFollowing = true;
+            setIsFollowing(true);
+            
+            // Update session storage
+            const sessionFollowKey = `follow_status_${currentUserId}_${profileUser._id}`;
+            sessionStorage.setItem(sessionFollowKey, 'true');
+            
+            console.log('Direct follow check result:', isUserFollowing);
           }
-          
-          updatedProfileUser.followers.push({
-            follower: { _id: currentUserId, name: currentUser?.name, avatar: currentUser?.avatar }
-          });
-          
-          setProfileUser(updatedProfileUser);
+        } catch (directCheckError) {
+          console.log('Direct follow check not available or failed');
         }
       }
     } catch (error) {
-      console.error('Error toggling follow:', error);
-      setFollowError(true);
-      
-      // Display the specific error message from the backend
-      if (error.response && error.response.data && error.response.data.message) {
-        alert(error.response.data.message);
-      } else {
-        console.error('Error details:', error.response ? error.response.data : 'No response data');
-        alert('Failed to follow/unfollow. Please try again.');
-      }
-    } finally {
-      setFollowLoading(false);
+      console.error('Error fetching follow status:', error);
     }
   };
 
@@ -445,6 +543,10 @@ const UserProfilePage = () => {
     try {
       setIsSubmitting(true);
       
+      // Get token at the start of the function
+      const token = localStorage.getItem('accessToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      
       // Try Firebase implementation first
       try {
         // Import Firebase if it's available in your project
@@ -469,10 +571,7 @@ const UserProfilePage = () => {
         // Continue with REST API if Firebase fails
       }
       
-      // Fallback to REST API
-      const token = localStorage.getItem('accessToken');
-      const headers = { Authorization: `Bearer ${token}` };
-      
+      // Fallback to REST API - token is already defined at the top of the function
       const response = await axios.delete(
         `http://localhost:3080/api/post/${selectedPost._id}`,
         { headers }
@@ -496,10 +595,6 @@ const UserProfilePage = () => {
     }
   };
 
-  const handleBackClick = () => {
-    navigate(-1);
-  };
-
   if (loading) {
     return (
       <div className="loading-container">
@@ -514,10 +609,6 @@ const UserProfilePage = () => {
       
       <div className="user-profile-content">
         <div className="profile-section">
-          <button className="back-button" onClick={handleBackClick}>
-            <ArrowLeft size={24} />
-          </button>
-          
           <div className="profile-header">
             <div className="profile-pic-container">
               <img
@@ -588,7 +679,7 @@ const UserProfilePage = () => {
         <div className="post-modal-overlay" onClick={handleCloseModal}>
           <div className="post-modal" onClick={(e) => e.stopPropagation()}>
             <button className="close-modal-button" onClick={handleCloseModal}>
-              <ArrowLeft size={24} />
+              <X size={24} />
             </button>
             <div className="post-modal-content">
               <div className="post-modal-image">

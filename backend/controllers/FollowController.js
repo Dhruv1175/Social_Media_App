@@ -126,3 +126,48 @@ export const getAllFollowRelationships = async (req, res) => {
         });
     }
 }
+
+// Check if a user is following another user
+export const checkFollowStatus = async (req, res) => {
+    try {
+        const { userid, followid } = req.params;
+        
+        // Validate the parameters
+        if (!userid || !followid) {
+            return res.status(400).send({ 
+                message: "Both userid and followid are required", 
+                success: false,
+                isFollowing: false 
+            });
+        }
+
+        // Check for self-follow (not allowed)
+        if (userid === followid) {
+            return res.status(400).send({ 
+                message: "Cannot check if user follows themselves", 
+                success: false,
+                isFollowing: false 
+            });
+        }
+
+        // Find the follow relationship
+        const followRelationship = await followermodel.findOne({
+            follower: userid,
+            following: followid
+        });
+
+        // Return whether the follow relationship exists
+        return res.status(200).send({
+            success: true,
+            isFollowing: !!followRelationship, // Convert to boolean
+            followDetails: followRelationship || null
+        });
+    } catch (error) {
+        console.error("Error checking follow status:", error);
+        res.status(500).send({
+            message: "Something went wrong while checking follow status",
+            success: false,
+            isFollowing: false
+        });
+    }
+}

@@ -87,68 +87,69 @@
 }
 
 .follow-button, .message-button {
-  padding: 7px 16px;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: 8px 16px;
+  border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
+  min-width: 100px;
+  border: none;
+  outline: none;
+  margin-right: 10px;
+  font-size: 14px;
 }
 
-.follow-button {
+.follow-button:not(.following) {
   background-color: #0095f6;
   color: white;
-  border: none;
-  transition: all 0.2s ease;
-  min-width: 80px;
+}
+
+.follow-button:not(.following):hover {
+  background-color: #0076c8;
 }
 
 .follow-button.following {
-  background-color: white;
+  background-color: #efefef;
   color: #262626;
   border: 1px solid #dbdbdb;
 }
 
-.follow-button.error {
-  background-color: #ed4956;
-  color: white;
-  border: none;
+.follow-button.following:hover:not(.confirm-unfollow) {
+  background-color: #f5f5f5;
+  border-color: #c7c7c7;
 }
 
 .follow-button.confirm-unfollow {
   background-color: #ed4956;
   color: white;
-  border: none;
+  border-color: #ed4956;
 }
 
-.follow-button:hover {
-  background-color: #1877f2;
+.follow-button.error {
+  animation: shake 0.5s ease-in-out;
+  background-color: #ed4956;
+  color: white;
 }
 
-.follow-button.following:hover {
-  background-color: #f8f8f8;
-  border-color: #c7c7c7;
-}
-
-.follow-button.confirm-unfollow:hover {
-  background-color: #c13584;
-}
-
-.follow-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  background-color: #0095f6;
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
 }
 
 .message-button {
-  background-color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background-color: #efefef;
   color: #262626;
   border: 1px solid #dbdbdb;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .message-button:hover {
-  background-color: #f8f8f8;
-  border-color: #c7c7c7;
+  background-color: #dbdbdb;
 }
 
 .stats {

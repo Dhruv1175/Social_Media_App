@@ -1293,11 +1293,15 @@ const ProfilePage = () => {
       event.stopPropagation();
     }
     
-    // Set the post as selected and show the edit modal
+    // Set the post as selected and toggle edit mode
     setSelectedPost(post);
-    setEditedCaption(post.text || '');
-    setEditPostMode(true);
+    setEditedCaption(post.text || post.caption || '');
     setShowPostModal(true);
+    
+    // Add slight delay to allow modal to render before toggling edit mode
+    setTimeout(() => {
+      setEditPostMode(true);
+    }, 100);
   };
 
   // Handle direct delete (without opening modal)
@@ -1470,12 +1474,13 @@ const ProfilePage = () => {
           <div className="post-modal" onClick={(e) => e.stopPropagation()}>
             <div className="post-modal-content">
               <div className="post-modal-image">
-                {selectedPost.videoUrl ? (
+                {selectedPost.video || selectedPost.videoUrl ? (
                   <video 
-                    src={selectedPost.videoUrl} 
+                    src={selectedPost.video || selectedPost.videoUrl} 
                     controls
                     poster={selectedPost.thumbnail || selectedPost.image}
                     className="post-video"
+                    autoPlay
                   />
                 ) : selectedPost.image ? (
                   <img 

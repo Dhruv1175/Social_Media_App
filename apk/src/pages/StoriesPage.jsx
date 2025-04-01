@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Image, Plus, X, ChevronLeft, ChevronRight, Send, Heart, MessageCircle, Upload, Camera } from 'lucide-react';
-import '../styles/Story.css';
+import { useNavigate } from 'react-router-dom';
+import { X, ChevronLeft, ChevronRight, Send, Heart, Camera, Upload, Plus } from 'lucide-react';
+import Sidebar from '../components/Sidebar';
+import '../styles/StoriesPage.css';
 
-const Story = () => {
-  // States for stories data and UI control
+const StoriesPage = () => {
+  const navigate = useNavigate();
   const [stories, setStories] = useState([]);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
   const [viewingStory, setViewingStory] = useState(null);
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [storyProgress, setStoryProgress] = useState(0);
@@ -23,20 +25,15 @@ const Story = () => {
   const progressIntervalRef = useRef(null);
   const storyTimeoutRef = useRef(null);
   
-  // Fetch user data and stories
   useEffect(() => {
     fetchData();
-  }, []);
-  
-  // Clean up intervals and timeouts when component unmounts
-  useEffect(() => {
+    
     return () => {
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
       if (storyTimeoutRef.current) clearTimeout(storyTimeoutRef.current);
     };
   }, []);
   
-  // Manage story auto-advancement
   useEffect(() => {
     if (viewingStory) {
       // Start progress
@@ -74,42 +71,44 @@ const Story = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Get current user from local storage
       const token = localStorage.getItem('accessToken');
       const userId = localStorage.getItem('userId');
       
       if (!token || !userId) {
-        throw new Error('Authentication required');
+        navigate('/login');
+        return;
       }
       
-      // Fetch current user profile and following list
-      const response = await axios.get(`http://localhost:3080/user/profile/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const headers = { Authorization: `Bearer ${token}` };
       
-      setCurrentUser(response.data.exist);
+      // Fetch user profile
+      const userResponse = await axios.get(
+        `http://localhost:3080/user/profile/${userId}`,
+        { headers }
+      );
       
-      // If you have a stories API endpoint, fetch stories here
+      setUser(userResponse.data.exist || null);
+      
+      // In a real app, we would fetch stories from an API endpoint
       // For now, we'll generate mock stories
-      const mockStories = generateMockStories(response.data.exist);
+      const mockStories = generateMockStories(userResponse.data.exist || { _id: userId });
       setStories(mockStories);
     } catch (error) {
       console.error('Error fetching data:', error);
-      // Fallback to mock data if API fails
+      // Fallback to mock data
       const mockUser = {
         _id: 'current-user-id',
         username: 'current_user',
         name: 'Current User',
         profileImageUrl: 'https://randomuser.me/api/portraits/women/44.jpg'
       };
-      setCurrentUser(mockUser);
+      setUser(mockUser);
       setStories(generateMockStories(mockUser));
     } finally {
       setLoading(false);
     }
   };
   
-  // Generate mock stories for demonstration
   const generateMockStories = (user) => {
     // Your story (if any)
     const yourStories = {
@@ -184,6 +183,38 @@ const Story = () => {
             timestamp: new Date(Date.now() - 5400000).toISOString(),
             viewed: false,
             caption: 'New camera setup!'
+          }
+        ]
+      },
+      {
+        userId: 'user4',
+        username: 'artist',
+        name: 'Creative Artist',
+        profileImageUrl: 'https://randomuser.me/api/portraits/women/22.jpg',
+        stories: [
+          {
+            id: 'story5',
+            imageUrl: 'https://source.unsplash.com/random/800x1200?art',
+            videoUrl: null,
+            timestamp: new Date(Date.now() - 3600000).toISOString(),
+            viewed: false,
+            caption: 'Working on a new project!'
+          }
+        ]
+      },
+      {
+        userId: 'user5',
+        username: 'fitness',
+        name: 'Fitness Coach',
+        profileImageUrl: 'https://randomuser.me/api/portraits/men/43.jpg',
+        stories: [
+          {
+            id: 'story6',
+            imageUrl: 'https://source.unsplash.com/random/800x1200?fitness',
+            videoUrl: null,
+            timestamp: new Date(Date.now() - 2700000).toISOString(),
+            viewed: false,
+            caption: "Today's workout was intense!"
           }
         ]
       }
@@ -335,17 +366,17 @@ const Story = () => {
         
         // Update stories array
         const updatedStories = [...stories];
-        const currentUserIndex = updatedStories.findIndex(user => user.userId === currentUser._id);
+        const currentUserIndex = updatedStories.findIndex(user => user.userId === user?._id);
         
         if (currentUserIndex !== -1) {
           updatedStories[currentUserIndex].stories.unshift(newStory);
         } else {
           // Create new user entry if not exists
           const newUserStory = {
-            userId: currentUser._id,
-            username: currentUser.username || currentUser.name,
-            name: currentUser.name || currentUser.username,
-            profileImageUrl: currentUser.profileImageUrl || currentUser.avatar,
+            userId: user._id,
+            username: user.username || user.name,
+            name: user.name || user.username,
+            profileImageUrl: user.profileImageUrl || user.avatar || 'https://via.placeholder.com/150',
             stories: [newStory]
           };
           updatedStories.unshift(newUserStory);
@@ -408,68 +439,69 @@ const Story = () => {
     return userStories.stories.some(story => !story.viewed);
   };
   
-  // Render story items
-  const renderStoryItems = () => {
-    if (loading) {
-      // Loading skeleton
-      return Array(4).fill().map((_, index) => (
-        <div className="stories-loading" key={`loading-${index}`}>
-          <div className="story-avatar-skeleton"></div>
-          <div className="story-username-skeleton"></div>
-        </div>
-      ));
-    }
-    
-    if (stories.length === 0) {
-      return <div className="empty-stories-message">No stories available</div>;
-    }
-    
+  if (loading) {
     return (
-      <>
-        {/* Create Story Button */}
-        <div className="story-item create-story" onClick={handleOpenCreateStory}>
-          <div className="story-avatar-border create">
-            <div className="story-avatar-container">
-              <div className="empty-avatar">
-                <Camera size={24} color="#8e8e8e" />
-              </div>
-              <div className="story-plus-icon">
-                <Plus size={14} color="white" />
-              </div>
-            </div>
-          </div>
-          <span className="story-username">Create</span>
-        </div>
-        
-        {/* Stories List */}
-        {stories.map((userStory, index) => (
-          <div 
-            className="story-item" 
-            key={userStory.userId}
-            onClick={() => handleViewStory(index)}
-          >
-            <div className={`story-avatar-border ${hasUnviewedStories(userStory) ? '' : 'viewed'}`}>
-              <div className="story-avatar-container">
-                <img 
-                  src={userStory.profileImageUrl || 'https://via.placeholder.com/150'} 
-                  alt={userStory.username}
-                  className="story-avatar"
-                  onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
-                />
-              </div>
-            </div>
-            <span className="story-username">{userStory.username}</span>
-          </div>
-        ))}
-      </>
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Loading stories...</p>
+      </div>
     );
-  };
+  }
 
   return (
-    <>
-      {/* Stories Container */}
-      <div className="stories-container">
-        {renderStoryItems()}
+    <div className="stories-page">
+      <Sidebar user={user} />
+      
+      <div className="stories-page-content">
+        <div className="stories-page-header">
+          <h1>Stories</h1>
+          <button className="create-story-btn" onClick={handleOpenCreateStory}>
+            <Plus size={20} />
+            <span>Create Story</span>
+          </button>
+        </div>
+        
+        <div className="stories-grid">
+          {stories.map((userStory, index) => (
+            <div 
+              className="story-grid-item" 
+              key={userStory.userId}
+              onClick={() => handleViewStory(index)}
+            >
+              <div className={`story-preview-border ${hasUnviewedStories(userStory) ? '' : 'viewed'}`}>
+                <div className="story-preview-container">
+                  {userStory.stories[0].videoUrl ? (
+                    <video 
+                      src={userStory.stories[0].videoUrl} 
+                      className="story-preview-media" 
+                    />
+                  ) : (
+                    <img 
+                      src={userStory.stories[0].imageUrl || 'https://via.placeholder.com/300'} 
+                      alt={userStory.username}
+                      className="story-preview-media"
+                      onError={(e) => { e.target.src = 'https://via.placeholder.com/300' }}
+                    />
+                  )}
+                  
+                  <div className="story-preview-user">
+                    <div className="story-preview-avatar">
+                      <img 
+                        src={userStory.profileImageUrl || 'https://via.placeholder.com/50'} 
+                        alt={userStory.username}
+                        onError={(e) => { e.target.src = 'https://via.placeholder.com/50' }}
+                      />
+                    </div>
+                    <span className="story-preview-username">{userStory.username}</span>
+                    <span className="story-preview-time">
+                      {formatTimeAgo(userStory.stories[0].timestamp)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
       
       {/* Story Viewing Modal */}
@@ -496,9 +528,9 @@ const Story = () => {
               <div className="story-user-info">
                 <div className="story-user-avatar">
                   <img 
-                    src={viewingStory.profileImageUrl} 
+                    src={viewingStory.profileImageUrl || 'https://via.placeholder.com/32'} 
                     alt={viewingStory.username}
-                    onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
+                    onError={(e) => { e.target.src = 'https://via.placeholder.com/32' }}
                   />
                 </div>
                 <span className="story-user-name">{viewingStory.username}</span>
@@ -524,7 +556,7 @@ const Story = () => {
                 />
               ) : (
                 <img 
-                  src={viewingStory.stories[activeStoryIndex].imageUrl} 
+                  src={viewingStory.stories[activeStoryIndex].imageUrl || 'https://via.placeholder.com/800x1200?text=Image+Not+Available'} 
                   className="story-media" 
                   alt="Story content"
                   onError={(e) => { e.target.src = 'https://via.placeholder.com/800x1200?text=Image+Not+Available' }}
@@ -558,9 +590,6 @@ const Story = () => {
               <div className="story-reactions">
                 <button className="story-reaction-btn">
                   <Heart size={24} color="white" />
-                </button>
-                <button className="story-reaction-btn">
-                  <MessageCircle size={24} color="white" />
                 </button>
               </div>
             </div>
@@ -657,8 +686,8 @@ const Story = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
-export default Story; 
+export default StoriesPage; 

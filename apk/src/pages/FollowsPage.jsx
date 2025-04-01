@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/Sidebar';
-import { ArrowLeft, RefreshCw, Users, UserPlus, UserCheck, Search, X, Sparkles } from 'lucide-react';
+import { Users, UserPlus, UserCheck, Search, X, Sparkles } from 'lucide-react';
 import '../styles/FollowsPage.css';
 
 const FollowsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState(null);
-  const [relationships, setRelationships] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [followers, setFollowers] = useState([]);
+  const [following, setFollowing] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,220 +22,416 @@ const FollowsPage = () => {
   const [profileId, setProfileId] = useState(initialState.userId || null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem('accessToken');
-        const currentUserId = localStorage.getItem('userId');
-        
-        if (!token || !currentUserId) {
-          navigate('/');
-          return;
-        }
-
-        const headers = { Authorization: `Bearer ${token}` };
-
-        // Fetch current user
-        const currentUserResponse = await axios.get(
-          `http://localhost:3080/user/profile/${currentUserId}`,
-          { headers }
-        );
-        setCurrentUser(currentUserResponse.data.exist);
-
-        // Fetch all follow relationships
-        const relationshipsResponse = await axios.get(
-          'http://localhost:3080/follows/all'
-        );
-
-        if (relationshipsResponse.data.success) {
-          setRelationships(relationshipsResponse.data.relationships || []);
-        } else {
-          setError('Failed to fetch follow relationships');
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setError('An error occurred while fetching data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
-  }, [navigate]);
+  }, [navigate, profileId]);
 
-  const handleRefresh = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:3080/follows/all');
+      const token = localStorage.getItem('accessToken');
+      const userId = localStorage.getItem('userId');
       
-      if (response.data.success) {
-        setRelationships(response.data.relationships || []);
-        setError(null);
+      if (!token || !userId) {
+        navigate('/');
+        return;
+      }
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Fetch current user
+      const currentUserResponse = await axios.get(
+        `http://localhost:3080/user/profile/${userId}`,
+        { headers }
+      );
+      setCurrentUser(currentUserResponse.data.exist);
+
+      // Fetch all users - using correct endpoint from UserRoutes.js
+      const allUsersResponse = await axios.get(
+        'http://localhost:3080/user/search',
+        { headers }
+      );
+      
+      if (allUsersResponse.data && allUsersResponse.data.users) {
+        setAllUsers(allUsersResponse.data.users.filter(user => user._id !== userId));
       } else {
-        setError('Failed to refresh follow relationships');
+        console.error('Failed to get all users or unexpected response format');
+        setAllUsers([]);
+      }
+      
+      // Determine which user profile we're viewing
+      const targetUserId = profileId || userId;
+      console.log(`Fetching data for user: ${targetUserId} (${profileId ? 'Profile view' : 'Own profile'})`);
+
+      // Get followers list - use profileId if available, otherwise use logged-in user
+      try {
+        const followersResponse = await axios.get(
+          `http://localhost:3080/user/${targetUserId}/followers`,
+          { headers }
+        );
+        
+        if (followersResponse.data && followersResponse.data.success) {
+          // Extract follower users from the response
+          const followerUsers = followersResponse.data.followdetails
+            .filter(f => f.follower && f.follower._id)
+            .map(f => f.follower);
+          
+          setFollowers(followerUsers);
+          console.log(`Loaded ${followerUsers.length} followers from server for user ${targetUserId}`);
+          
+          // Only update session storage if it's our own profile
+          if (targetUserId === userId) {
+            updateFollowSessionData(userId, followerUsers, 'followers');
+          }
+        } else {
+          console.error('Failed to get followers or unexpected response format');
+          setFollowers([]);
+        }
+      } catch (err) {
+        console.error('Error fetching followers:', err);
+        setFollowers([]);
+      }
+      
+      // Get following list - use profileId if available, otherwise use logged-in user
+      try {
+        const followingResponse = await axios.get(
+          `http://localhost:3080/user/${targetUserId}/following`,
+          { headers }
+        );
+        
+        if (followingResponse.data && followingResponse.data.success) {
+          // Extract following users from the response
+          const followingUsers = followingResponse.data.followdetails
+            .filter(f => f.following && f.following._id)
+            .map(f => f.following);
+          
+          setFollowing(followingUsers);
+          console.log(`Loaded ${followingUsers.length} following from server for user ${targetUserId}`);
+          
+          // Only update our following data in session storage if it's our own profile
+          if (targetUserId === userId) {
+            // Update session storage with following data
+            updateFollowSessionData(userId, followingUsers, 'following');
+            
+            // Update individual follow status in session storage
+            followingUsers.forEach(followedUser => {
+              if (followedUser && followedUser._id) {
+                const sessionFollowKey = `follow_status_${userId}_${followedUser._id}`;
+                sessionStorage.setItem(sessionFollowKey, 'true');
+              }
+            });
+          }
+        } else {
+          console.error('Failed to get following or unexpected response format');
+          setFollowing([]);
+        }
+      } catch (err) {
+        console.error('Error fetching following:', err);
+        setFollowing([]);
       }
     } catch (error) {
-      console.error('Error refreshing data:', error);
-      setError('An error occurred while refreshing data');
+      console.error('Error fetching data:', error);
+      setError('An error occurred while fetching data');
     } finally {
       setLoading(false);
     }
   };
-
-  const handleBackClick = () => {
-    navigate(-1);
+  
+  // Helper function to update session storage with follow data
+  const updateFollowSessionData = (userId, users, type) => {
+    try {
+      if (!Array.isArray(users)) return;
+      
+      // Store simplified version of users to reduce storage size
+      const simplifiedUsers = users.map(user => ({
+        _id: user._id,
+        name: user.name,
+        username: user.username,
+        avatar: user.avatar
+      }));
+      
+      // Use userId to make the key unique for each logged-in user
+      const storageKey = `${userId}_${type}`;
+      sessionStorage.setItem(storageKey, JSON.stringify(simplifiedUsers));
+      
+      console.log(`Updated session storage for ${type}`);
+    } catch (error) {
+      console.error(`Error saving ${type} to session storage:`, error);
+    }
   };
 
   const handleUserClick = (userId) => {
     navigate(`/profile/${userId}`);
   };
+  
+  const handleFollow = async (user) => {
+    if (!user || !user._id) return;
+    
+    // Disable button while processing
+    const userId = localStorage.getItem('userId');
+    const userBeingActedOn = user._id || user.id;
+    
+    // Generate a unique key for this follow operation
+    const operationKey = `follow-${userId}-${userBeingActedOn}`;
+    
+    // Check if we're already processing this operation
+    if (window[operationKey]) {
+      console.log('Operation already in progress, skipping duplicate');
+      return;
+    }
+    
+    // Set flag to prevent duplicate operations
+    window[operationKey] = true;
+    
+    try {
+      const token = localStorage.getItem('accessToken');
+      
+      if (!token || !userId) {
+        navigate('/');
+        return;
+      }
+      
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      // Determine if we're following or unfollowing
+      const isCurrentlyFollowing = following.some(f => f._id === userBeingActedOn);
+      
+      // Create session storage key for this follow relationship
+      const sessionFollowKey = `follow_status_${userId}_${userBeingActedOn}`;
+      
+      // Use the correct endpoint format from the backend routes
+      const endpoint = isCurrentlyFollowing
+        ? `http://localhost:3080/user/${userId}/${userBeingActedOn}/unfollow`
+        : `http://localhost:3080/user/${userId}/${userBeingActedOn}/follow`;
+      
+      console.log(`Using endpoint: ${endpoint} for ${isCurrentlyFollowing ? 'unfollow' : 'follow'} action`);
+      
+      // Clone current following list before optimistic update
+      const previousFollowing = [...following];
+      const newFollowStatus = !isCurrentlyFollowing;
+      
+      // Optimistically update UI
+      if (isCurrentlyFollowing) {
+        // Remove from following array if unfollowing
+        setFollowing(prevFollowing => prevFollowing.filter(f => f._id !== userBeingActedOn));
+        // Update session storage
+        sessionStorage.setItem(sessionFollowKey, 'false');
+      } else {
+        // Add to following array if following
+        setFollowing(prevFollowing => [...prevFollowing, user]);
+        // Update session storage
+        sessionStorage.setItem(sessionFollowKey, 'true');
+      }
+      
+      console.log(`Starting ${isCurrentlyFollowing ? 'unfollow' : 'follow'} operation for user ${user.name}`);
+      
+      // Make API call with correct endpoint and empty body (as per backend implementation)
+      try {
+        const response = await axios.post(
+          endpoint,
+          {}, // Empty body as the backend uses route parameters
+          { headers }
+        );
+        
+        console.log('API Response:', response.data);
+        
+        if (!response.data || !response.data.success) {
+          // If unsuccessful, revert the optimistic update
+          console.error('Follow/unfollow failed:', response.data?.message || 'No success response');
+          setFollowing(previousFollowing); // Restore previous state
+          
+          // Revert session storage as well
+          sessionStorage.setItem(sessionFollowKey, isCurrentlyFollowing.toString());
+          
+          throw new Error(response.data?.message || 'Failed to update follow status');
+        }
+        
+        console.log(`Successfully ${isCurrentlyFollowing ? 'unfollowed' : 'followed'} user:`, user.name);
+        
+        // Force update of following/followers lists
+        const forceRefresh = async () => {
+          try {
+            // Refetch following status to ensure it's updated
+            const followingResponse = await axios.get(
+              `http://localhost:3080/user/${userId}/following`,
+              { headers }
+            );
+            
+            if (followingResponse.data && followingResponse.data.success) {
+              const followingUsers = followingResponse.data.followdetails
+                .filter(f => f.following && f.following._id)
+                .map(f => f.following);
+                
+              setFollowing(followingUsers);
+              console.log(`Updated following list, now following ${followingUsers.length} users`);
+              
+              // Update session storage with following data
+              updateFollowSessionData(userId, followingUsers, 'following');
+              
+              // Update individual follow status in session storage
+              followingUsers.forEach(followedUser => {
+                if (followedUser && followedUser._id) {
+                  const followSessionKey = `follow_status_${userId}_${followedUser._id}`;
+                  sessionStorage.setItem(followSessionKey, 'true');
+                }
+              });
+              
+              // Make sure our directly updated user has the correct state
+              const specificUserKey = `follow_status_${userId}_${userBeingActedOn}`;
+              const isNowFollowing = followingUsers.some(f => f._id === userBeingActedOn);
+              sessionStorage.setItem(specificUserKey, isNowFollowing.toString());
+            }
+          } catch (refreshError) {
+            console.error('Error refreshing follow data:', refreshError);
+          }
+        };
+        
+        // Run immediate force refresh
+        await forceRefresh();
+        
+        // Then do a full data refresh
+        setTimeout(() => {
+          fetchData();
+        }, 500);
+        
+      } catch (error) {
+        console.error('Follow/unfollow request failed:', error);
+        
+        // Revert UI state
+        setFollowing(previousFollowing);
+        sessionStorage.setItem(sessionFollowKey, isCurrentlyFollowing.toString());
+        
+        // Display specific error message
+        alert(error.message || 'Failed to update follow status. Please try again.');
+        
+        // Full refresh to ensure UI is in sync with server
+        fetchData();
+      }
+    } catch (error) {
+      console.error('Error following/unfollowing user:', error);
+      alert(error.message || 'Failed to update follow status. Please try again.');
+      // Full refresh to ensure UI is in sync with server
+      fetchData();
+    } finally {
+      // Clear operation flag
+      window[operationKey] = false;
+    }
+  };
 
-  // Process relationships based on filter and create a list of user objects
+  // Process users based on filter and search term
   const getProcessedUsers = () => {
     const currentUserId = localStorage.getItem('userId');
-    const targetId = profileId || currentUserId;
+    const targetUserId = profileId || currentUserId; // Use profileId if available, otherwise use current user
     
-    // First filter relationships based on search and current filter
-    const filteredRels = relationships.filter(rel => {
-      // Apply search term filter
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        const followerMatch = rel.follower.name.toLowerCase().includes(searchLower);
-        const followingMatch = rel.following.name.toLowerCase().includes(searchLower);
+    // Determine which users to display based on filter
+    let filteredUsers = [];
+    
+    if (filter === 'followers') {
+      filteredUsers = [...followers];
+    } else if (filter === 'following') {
+      filteredUsers = [...following];
+    } else if (filter === 'recommended') {
+      // Check if we're viewing our own or another user's profile
+      if (profileId && profileId !== currentUserId) {
+        // For another user's profile, we should show a different set of recommendations
+        // For example, users they follow that we don't follow yet
+        // This is simplified - you might want more complex recommendation logic
+        filteredUsers = allUsers.filter(user => 
+          !following.some(f => f._id === user._id) && 
+          user._id !== currentUserId
+        );
+      } else {
+        // Standard recommendations for current user
+        filteredUsers = allUsers.filter(user => 
+          !following.some(f => f._id === user._id)
+        );
+      }
+    }
+    
+    // Apply search term filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filteredUsers = filteredUsers.filter(user => 
+        user.name?.toLowerCase().includes(searchLower) ||
+        user.username?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Add additional info to each user
+    return filteredUsers.map(user => {
+      const userId = localStorage.getItem('userId');
+      const userIdToCheck = user._id || user.id;
+      
+      // First check session storage for the most up-to-date follow status
+      const sessionFollowKey = `follow_status_${userId}_${userIdToCheck}`;
+      const sessionFollowStatus = sessionStorage.getItem(sessionFollowKey);
+      
+      // Determine if this user is followed by current user
+      let isFollowed = false;
+      
+      if (sessionFollowStatus !== null) {
+        // Use the value from session storage if available
+        isFollowed = sessionFollowStatus === 'true';
+      } else {
+        // Fall back to checking the following array
+        isFollowed = following.some(f => 
+          (f._id === userIdToCheck) || (f._id === user.id) || (f.id === userIdToCheck)
+        );
         
-        if (!followerMatch && !followingMatch) {
-          return false;
-        }
+        // Update session storage with the computed value
+        sessionStorage.setItem(sessionFollowKey, isFollowed.toString());
       }
       
-      // Apply user type filter
+      // Determine the type based on filter
+      let type = 'User';
       if (filter === 'followers') {
-        return rel.following.id === targetId;
-      }
-      
-      if (filter === 'following') {
-        return rel.follower.id === targetId;
-      }
-      
-      return true;
-    });
-    
-    // Convert relationships to user objects
-    let processedUsers = filteredRels.map(rel => {
-      let user;
-      let type;
-      
-      if (filter === 'followers' || (filter !== 'recommended' && rel.following.id === targetId)) {
-        // This user follows the target
-        user = rel.follower;
         type = 'Follower';
-      } else if (filter === 'following' || (filter !== 'recommended' && rel.follower.id === targetId)) {
-        // Target follows this user
-        user = rel.following;
+      } else if (filter === 'following') {
         type = 'Following';
       } else {
-        // For other cases in non-recommended filters
-        user = rel.follower.id === targetId ? rel.following : rel.follower;
-        type = rel.follower.id === targetId ? 'Following' : 'Follower';
+        type = 'Suggested';
       }
       
       return {
-        id: user.id,
-        name: user.name,
-        avatar: user.avatar,
-        type: type,
-        date: rel.date
+        ...user,
+        id: userIdToCheck, // Ensure we have a consistent id field
+        type,
+        date: user.createdAt || new Date().toISOString(),
+        isFollowed
       };
     });
-    
-    // For recommended filter, apply special logic to prioritize:
-    // 1. Users who are followed by people you follow
-    // 2. Users with more followers
-    // 3. Recent users
-    if (filter === 'recommended') {
-      const currentUserId = localStorage.getItem('userId');
-      
-      // Get users the current user is following
-      const followingIds = relationships
-        .filter(rel => rel.follower.id === currentUserId)
-        .map(rel => rel.following.id);
-      
-      // Count followers for each user
-      const followerCounts = {};
-      relationships.forEach(rel => {
-        if (!followerCounts[rel.following.id]) {
-          followerCounts[rel.following.id] = 0;
-        }
-        followerCounts[rel.following.id]++;
-      });
-      
-      // Find users that are followed by users the current user follows
-      const followedByFollowing = new Set();
-      relationships.forEach(rel => {
-        if (followingIds.includes(rel.follower.id) && rel.following.id !== currentUserId) {
-          followedByFollowing.add(rel.following.id);
-        }
-      });
-      
-      // Create a list of all unique users that are not the current user and not already followed
-      const allUserIds = new Set();
-      const alreadyFollowing = new Set(followingIds);
-      
-      relationships.forEach(rel => {
-        if (rel.follower.id !== currentUserId && !alreadyFollowing.has(rel.follower.id)) {
-          allUserIds.add(rel.follower.id);
-        }
-        if (rel.following.id !== currentUserId && !alreadyFollowing.has(rel.following.id)) {
-          allUserIds.add(rel.following.id);
-        }
-      });
-      
-      // Build recommended users list and sort them
-      const recommendedUsers = [];
-      
-      // Extract unique users and eliminate duplicates
-      const seenIds = new Set();
-      
-      processedUsers.forEach(user => {
-        if (!seenIds.has(user.id) && user.id !== currentUserId && !alreadyFollowing.has(user.id)) {
-          const score = (followedByFollowing.has(user.id) ? 100 : 0) + 
-                       (followerCounts[user.id] || 0);
-          
-          recommendedUsers.push({
-            ...user,
-            score: score,
-            type: 'Suggested'
-          });
-          
-          seenIds.add(user.id);
-        }
-      });
-      
-      // Sort by score (users followed by your follows first, then by follower count)
-      recommendedUsers.sort((a, b) => b.score - a.score);
-      
-      // Return top recommendations
-      return recommendedUsers;
-    }
-    
-    return processedUsers;
   };
 
   const processedUsers = getProcessedUsers();
 
   // Get the name of the user whose relationships we're viewing
   const getProfileName = () => {
-    if (!profileId || !relationships.length) return '';
+    if (!profileId) return '';
     
-    const userRelationship = relationships.find(
-      rel => rel.follower.id === profileId || rel.following.id === profileId
-    );
+    // Check if we're viewing our own profile
+    const currentUserId = localStorage.getItem('userId');
+    if (profileId === currentUserId && currentUser) {
+      return currentUser.name || 'Your';
+    }
     
-    if (!userRelationship) return '';
+    // Check if the user is in our following or followers list
+    const userInFollowing = following.find(user => user._id === profileId);
+    if (userInFollowing) {
+      return userInFollowing.name || "User's";
+    }
     
-    return userRelationship.follower.id === profileId 
-      ? userRelationship.follower.name 
-      : userRelationship.following.name;
+    const userInFollowers = followers.find(user => user._id === profileId);
+    if (userInFollowers) {
+      return userInFollowers.name || "User's";
+    }
+    
+    // Check if the user is in the all users list
+    const userInAll = allUsers.find(user => user._id === profileId);
+    if (userInAll) {
+      return userInAll.name || "User's";
+    }
+    
+    // If we can't find the name, return a generic label
+    return "User's";
   };
 
   // Render empty state based on filter
@@ -268,23 +466,30 @@ const FollowsPage = () => {
     });
   };
 
+  // Add button to follow or unfollow a user
+  const renderFollowButton = (user) => {
+    const isCurrentlyFollowed = user.isFollowed;
+    
+    return (
+      <button
+        className={`follow-btn ${isCurrentlyFollowed ? 'following' : ''}`}
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent navigation
+          handleFollow(user);
+        }}
+      >
+        {isCurrentlyFollowed ? 'Unfollow' : 'Follow'}
+      </button>
+    );
+  };
+
   return (
     <div className="follows-page">
       <Sidebar user={currentUser} />
       
       <div className="follows-content">
-        <div className="follows-header">
-          <h1>
-            {profileId && filter !== 'recommended' 
-              ? `${getProfileName()}'s ${filter === 'followers' ? 'Followers' : 'Following'}`
-              : filter === 'followers' ? 'Followers' : 
-                filter === 'following' ? 'Following' : 'Suggestions'}
-          </h1>
-          <button className="refresh-button" onClick={handleRefresh} disabled={loading}>
-            <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-          </button>
-        </div>
-
+        {error && <div className="error-message">{error}</div>}
+        
         <div className="search-filter-container">
           <div className="search-input-container">
             <Search size={16} className="search-icon" />
@@ -310,7 +515,6 @@ const FollowsPage = () => {
               className={`filter-button ${filter === 'recommended' ? 'active' : ''}`}
               onClick={() => { 
                 setFilter('recommended');
-                setProfileId(null);
               }}
             >
               <Sparkles size={16} />
@@ -333,8 +537,6 @@ const FollowsPage = () => {
           </div>
         </div>
 
-        {error && <div className="error-message">{error}</div>}
-        
         {loading ? (
           <div className="loading-container">
             <div className="loader"></div>
@@ -351,9 +553,9 @@ const FollowsPage = () => {
               <div className="relationships-list">
                 {processedUsers.map((user) => (
                   <div 
-                    key={`${user.id}-${user.type}`} 
+                    key={user._id || user.id} 
                     className="user-item"
-                    onClick={() => handleUserClick(user.id)}
+                    onClick={() => handleUserClick(user._id || user.id)}
                   >
                     <img 
                       src={user.avatar || 'https://via.placeholder.com/50'} 
@@ -362,11 +564,14 @@ const FollowsPage = () => {
                     />
                     <div className="user-details">
                       <span className="user-name">{user.name}</span>
-                      <span className="user-id">ID: {user.id}</span>
+                      <span className="user-username">{user.username}</span>
                     </div>
                     <div className="user-meta">
                       <span className="user-date">{formatDate(user.date)}</span>
                       <span className="user-type">{user.type}</span>
+                    </div>
+                    <div className="user-actions">
+                      {renderFollowButton(user)}
                     </div>
                   </div>
                 ))}

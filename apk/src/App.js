@@ -18,10 +18,11 @@ function App() {
     <Router>
       <div className="App">
         <Routes>
-          <Route path="/" element={isAuthenticated ? <FeedPage /> : <Navigate to="/login" />} />
+          <Route path="/" element={<Navigate to="/home" />} />
+          <Route path="/home" element={isAuthenticated ? <FeedPage /> : <Navigate to="/login" />} />
           <Route path="/profile" element={isAuthenticated ? <ProfilePage /> : <Navigate to="/login" />} />
           {/* Add more routes as needed */}
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/home" />} />
         </Routes>
       </div>
     </Router>

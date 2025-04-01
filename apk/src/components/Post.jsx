@@ -247,7 +247,7 @@ const Posts = ({ posts: initialPosts, user }) => {
     } catch (localStorageError) {
       console.error('Error updating localStorage:', localStorageError);
     }
-
+      
     // Try API update but don't revert UI on failure
     try {
       const endpoint = `http://localhost:3080/user/${userId}/post/userpost/${postId}/like`;
@@ -270,7 +270,7 @@ const Posts = ({ posts: initialPosts, user }) => {
   const toggleSave = async (e, postId) => {
     e.preventDefault();
     e.stopPropagation();
-
+    
     const userId = user?._id || localStorage.getItem('userId');
     if (!userId) {
       console.error('User ID not found.');
@@ -367,7 +367,7 @@ const Posts = ({ posts: initialPosts, user }) => {
             const likeCount = likeCounts[post._id] !== undefined ? likeCounts[post._id] : post.likes || 0;
             
             return {
-              ...post,
+            ...post,
               isLiked,
               isSaved,
               likes: likeCount
@@ -418,7 +418,7 @@ const Posts = ({ posts: initialPosts, user }) => {
                   {post.location && <span className="location">{post.location}</span>}
                 </div>
               </div>
-              {post.user?._id === user?._id && (
+                {post.user?._id === user?._id && (
                 <div className="post-actions-top" ref={optionsRef}>
                   <button
                     onClick={(e) => togglePostOptions(post._id, e)}
@@ -447,8 +447,8 @@ const Posts = ({ posts: initialPosts, user }) => {
                       >
                         <Trash2 size={16} />
                         <span>Delete</span>
-                      </button>
-                    </div>
+                </button>
+              </div>
                   )}
                 </div>
               )}
@@ -478,8 +478,8 @@ const Posts = ({ posts: initialPosts, user }) => {
             {/* Post Actions */}
             <div className="post-actions">
               <div className="left-actions">
-                <button 
-                  onClick={(e) => toggleLike(e, post._id)} 
+                <button
+                  onClick={(e) => toggleLike(e, post._id)}
                   className={`action-button ${post.isLiked ? 'liked' : ''}`}
                   aria-label={post.isLiked ? 'Unlike' : 'Like'}
                 >
@@ -492,8 +492,8 @@ const Posts = ({ posts: initialPosts, user }) => {
                   <Share2 size={24} />
                 </button>
               </div>
-              <button 
-                onClick={(e) => toggleSave(e, post._id)} 
+              <button
+                onClick={(e) => toggleSave(e, post._id)}
                 className={`action-button ${post.isSaved ? 'saved' : ''}`}
                 aria-label={post.isSaved ? 'Unsave' : 'Save'}
               >
@@ -508,12 +508,12 @@ const Posts = ({ posts: initialPosts, user }) => {
             <div className="post-caption">
               {editingPostId === post._id ? (
                 <div className="caption-edit-container">
-                  <textarea
-                    value={editedPostText[post._id] || ''}
-                    onChange={(e) => handleTextChange(post._id, e.target.value)}
-                    className="caption-editor"
+                <textarea
+                  value={editedPostText[post._id] || ''}
+                  onChange={(e) => handleTextChange(post._id, e.target.value)}
+                  className="caption-editor"
                     rows={3}
-                    disabled={isSubmitting}
+                  disabled={isSubmitting}
                     placeholder="Edit your caption..."
                   />
                   <div className="caption-edit-actions">
