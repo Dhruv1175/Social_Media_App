@@ -20,7 +20,7 @@ const server = http.createServer(app);
 // Initialize Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000", // Allow connections from React frontend
+    origin: ["http://localhost:3000", "http://localhost:3001"], // Allow connections from React frontend
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -39,9 +39,27 @@ io.on("connection", (socket) => {
   // Handle sending messages
   socket.on("send_message", async (messageData) => {
     try {
-      const { senderId, receiverId, content } = messageData;
+      const { senderId, receiverId, content, _id } = messageData;
       
-      // Save message to database
+      console.log(`Socket message: ${senderId} -> ${receiverId}: ${content}`);
+      
+      // If the message already has an ID, it was already saved to DB via HTTP
+      // Just forward it to the recipient
+      if (_id) {
+        console.log(`Forwarding existing message ${_id} to recipient ${receiverId}`);
+        
+        socket.to(receiverId).emit("receive_message", {
+          _id: _id,
+          sender: senderId,
+          receiver: receiverId,
+          content: content,
+          timestamp: new Date()
+        });
+        
+        return;
+      }
+      
+      // Save message to database if it doesn't have an ID yet
       const newMessage = new messagemodel({
         sender: senderId,
         receiver: receiverId,
@@ -54,13 +72,14 @@ io.on("connection", (socket) => {
       socket.to(receiverId).emit("receive_message", {
         _id: newMessage._id,
         sender: senderId,
+        receiver: receiverId,
         content: content,
         timestamp: newMessage.timestamp
       });
       
-      console.log(`Message sent from ${senderId} to ${receiverId}`);
+      console.log(`Message saved and sent from ${senderId} to ${receiverId} with ID ${newMessage._id}`);
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("Error handling socket message:", error);
     }
   });
   

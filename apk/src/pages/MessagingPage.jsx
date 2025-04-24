@@ -31,7 +31,7 @@ const MessagingPage = () => {
     }
 
     // Connect to socket.io server
-    const newSocket = io('http://localhost:3080');
+    const newSocket = io('http://localhost:30801');
     setSocket(newSocket);
 
     // Clean up on component unmount
@@ -52,11 +52,35 @@ const MessagingPage = () => {
 
     // Event listeners
     socket.on('receive_message', (data) => {
-      setMessages((prevMessages) => [...prevMessages, data]);
+      console.log('Received message via socket:', data);
+      
+      // Only add the message if it's from the currently selected contact
+      if (selectedContact && (data.sender === selectedContact._id || data.senderId === selectedContact._id)) {
+        setMessages((prevMessages) => {
+          // Check if this message is already in the list to avoid duplicates
+          const isDuplicate = prevMessages.some(
+            msg => msg._id === data._id || 
+                  (msg.content === data.content && 
+                   msg.sender === data.sender && 
+                   new Date(msg.timestamp).getTime() === new Date(data.timestamp).getTime())
+          );
+          
+          if (isDuplicate) {
+            return prevMessages;
+          }
+          
+          // Add the new message
+          return [...prevMessages, data];
+        });
+      } else {
+        // If message is from someone else, we could show a notification
+        console.log('New message from non-active contact:', data);
+        // Implement notification here if needed
+      }
     });
 
     socket.on('typing_indicator', (data) => {
-      if (selectedContact && data.senderId === selectedContact._id) {
+      if (selectedContact && (data.senderId === selectedContact._id)) {
         setIsTyping(data.isTyping);
       }
     });
@@ -84,49 +108,112 @@ const MessagingPage = () => {
 
         // Fetch user profile
         const userResponse = await axios.get(
-          `http://localhost:3080/user/profile/${userId}`,
-          { headers }
-        );
-
-        // Fetch user's followers and following to get contacts
-        const followersResponse = await axios.get(
-          `http://localhost:3080/user/${userId}/followers`,
-          { headers }
-        );
-
-        const followingResponse = await axios.get(
-          `http://localhost:3080/user/${userId}/following`,
+          `http://localhost:30801/user/profile/${userId}`,
           { headers }
         );
 
         setUser(userResponse.data.exist);
 
-        // Combine followers and following to create contacts list
-        const followers = followersResponse.data.followersList || [];
-        const following = followingResponse.data.followingsList || [];
+        // Fetch contacts with message history
+        const messageContactsResponse = await axios.get(
+          `http://localhost:30801/user/${userId}/messages/contacts`,
+          { headers }
+        );
 
-        // Create a unique list of contacts
-        const uniqueContacts = {};
-        
-        followers.forEach(follower => {
-          if (follower.follower) {
-            uniqueContacts[follower.follower._id] = follower.follower;
-          }
-        });
-        
-        following.forEach(follow => {
-          if (follow.following) {
-            uniqueContacts[follow.following._id] = follow.following;
-          }
-        });
-        
-        const contactsList = Object.values(uniqueContacts);
-        setContacts(contactsList);
+        if (messageContactsResponse.data && messageContactsResponse.data.success) {
+          console.log("Message contacts:", messageContactsResponse.data.users);
+          const messageContacts = messageContactsResponse.data.users || [];
+          
+          // Fetch user's followers and following to add potential contacts who haven't messaged yet
+          const followersResponse = await axios.get(
+            `http://localhost:30801/user/${userId}/followers`,
+            { headers }
+          );
 
-        // If we have an initial contact from navigation state, make sure it's in the contacts list
-        if (initialContact && !uniqueContacts[initialContact._id]) {
-          contactsList.push(initialContact);
+          const followingResponse = await axios.get(
+            `http://localhost:30801/user/${userId}/following`,
+            { headers }
+          );
+
+          // Combine followers and following to create contacts list
+          const followers = followersResponse.data.followersList || [];
+          const following = followingResponse.data.followingsList || [];
+
+          // Create a map of contacts with message history for quick lookup
+          const messageContactsMap = new Map(
+            messageContacts.map(contact => [contact._id, contact])
+          );
+
+          // Add followers and following who aren't in message contacts
+          followers.forEach(follower => {
+            if (follower.follower && !messageContactsMap.has(follower.follower._id)) {
+              messageContacts.push({
+                ...follower.follower,
+                hasMessaged: false
+              });
+            }
+          });
+          
+          following.forEach(follow => {
+            if (follow.following && !messageContactsMap.has(follow.following._id)) {
+              messageContacts.push({
+                ...follow.following,
+                hasMessaged: false
+              });
+            }
+          });
+
+          // Ensure contacts have hasMessaged property
+          const enhancedContacts = messageContacts.map(contact => ({
+            ...contact,
+            hasMessaged: !!contact.lastMessage
+          }));
+
+          setContacts(enhancedContacts);
+        } else {
+          // Fallback to only followers/following if message contacts fails
+          const followersResponse = await axios.get(
+            `http://localhost:30801/user/${userId}/followers`,
+            { headers }
+          );
+
+          const followingResponse = await axios.get(
+            `http://localhost:30801/user/${userId}/following`,
+            { headers }
+          );
+
+          // Combine followers and following to create contacts list
+          const followers = followersResponse.data.followersList || [];
+          const following = followingResponse.data.followingsList || [];
+
+          // Create a unique list of contacts
+          const uniqueContacts = {};
+          
+          followers.forEach(follower => {
+            if (follower.follower) {
+              uniqueContacts[follower.follower._id] = {
+                ...follower.follower,
+                hasMessaged: false
+              };
+            }
+          });
+          
+          following.forEach(follow => {
+            if (follow.following) {
+              uniqueContacts[follow.following._id] = {
+                ...follow.following,
+                hasMessaged: false
+              };
+            }
+          });
+          
+          const contactsList = Object.values(uniqueContacts);
           setContacts(contactsList);
+        }
+
+        // If we have an initial contact from navigation state, make sure it's selected
+        if (initialContact) {
+          setSelectedContact(initialContact);
         }
         
         setLoading(false);
@@ -150,31 +237,70 @@ const MessagingPage = () => {
       if (!selectedContact) return;
 
       try {
+        setLoading(true);
         const userId = localStorage.getItem('userId');
         const token = localStorage.getItem('accessToken');
 
+        if (!userId || !token) {
+          navigate('/');
+          return;
+        }
+
         const headers = { Authorization: `Bearer ${token}` };
+
+        console.log(`Fetching messages between ${userId} and ${selectedContact._id}`);
 
         // Fetch messages between current user and selected contact
         const response = await axios.get(
-          `http://localhost:3080/user/${userId}/${selectedContact._id}/message/get`,
+          `http://localhost:30801/user/${userId}/${selectedContact._id}/message/get`,
           { headers }
         );
 
-        setMessages(response.data.messagedetails || []);
+        console.log('API response:', response.data);
+
+        if (response.data && response.data.messagedetails) {
+          const fetchedMessages = response.data.messagedetails;
+          console.log(`Loaded ${fetchedMessages.length} messages:`, fetchedMessages);
+          
+          // Format messages to ensure proper display
+          const formattedMessages = fetchedMessages.map(message => ({
+            _id: message._id,
+            sender: message.sender,
+            receiver: message.receiver,
+            content: message.content,
+            timestamp: message.timestamp
+          }));
+          
+          setMessages(formattedMessages);
+        } else {
+          console.warn('No messages found or unexpected response format:', response.data);
+          setMessages([]);
+        }
       } catch (error) {
-        console.error('Error fetching messages:', error);
+        console.error('Error fetching messages:', error.response || error);
+        // Show an error message to the user
+        alert('Could not load messages. Please try again later.');
+        setMessages([]);
+      } finally {
+        setLoading(false);
       }
     };
 
     if (selectedContact) {
       fetchMessages();
     }
-  }, [selectedContact]);
+  }, [selectedContact, navigate]);
 
   const handleContactSelect = (contact) => {
-    setSelectedContact(contact);
+    // Clear current messages to avoid showing previous conversation
+    setMessages([]);
     setIsTyping(false);
+    setSelectedContact(contact);
+    
+    // Focus on input field after selecting a contact
+    setTimeout(() => {
+      document.querySelector('.message-input-form input')?.focus();
+    }, 100);
   };
 
   const handleInputChange = (e) => {
@@ -207,42 +333,124 @@ const MessagingPage = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     
-    if (!newMessage.trim() || !socket || !selectedContact) return;
+    if (!newMessage.trim() || !selectedContact) return;
 
     const userId = localStorage.getItem('userId');
-    if (!userId) return;
+    const token = localStorage.getItem('accessToken');
+    
+    if (!userId || !token) return;
 
     try {
-      // Send message via socket
-      socket.emit('send_message', {
-        senderId: userId,
-        receiverId: selectedContact._id,
-        content: newMessage
-      });
+      // Temporary optimistic message ID for easy replacement
+      const tempId = `temp-${Date.now()}`;
+      
+      // Create optimistic message object
+      const optimisticMessage = {
+        _id: tempId,
+        sender: userId,
+        receiver: selectedContact._id,
+        content: newMessage,
+        timestamp: new Date(),
+        isOptimistic: true // Flag to identify optimistic messages
+      };
 
       // Optimistically update UI
-      setMessages([
-        ...messages,
-        {
-          sender: userId,
-          receiver: selectedContact._id,
-          content: newMessage,
-          timestamp: new Date()
-        }
-      ]);
+      setMessages(prevMessages => [...prevMessages, optimisticMessage]);
 
       // Clear input field
       setNewMessage('');
 
-      // Stop typing indicator
-      socket.emit('typing', {
-        senderId: userId,
-        receiverId: selectedContact._id,
-        isTyping: false
-      });
+      // Send message via HTTP request to ensure persistence
+      const response = await axios.post(
+        `http://localhost:30801/user/${userId}/receiver/${selectedContact._id}/message/send`,
+        { content: newMessage },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      console.log('Message send response:', response.data);
+
+      // Replace the optimistic message with the actual saved message
+      if (response.data.success && response.data.messageDetails) {
+        const savedMessage = response.data.messageDetails;
+        
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            // If this is our optimistic message, replace it with the real one
+            msg._id === tempId ? {
+              _id: savedMessage._id,
+              sender: savedMessage.sender,
+              receiver: savedMessage.receiver,
+              content: savedMessage.content,
+              timestamp: savedMessage.timestamp
+            } : msg
+          )
+        );
+      }
+
+      // Only emit via socket if we have an active connection
+      if (socket) {
+        // Send message via socket for real-time delivery
+        socket.emit('send_message', {
+          senderId: userId,
+          receiverId: selectedContact._id,
+          content: newMessage,
+          _id: response.data.messageDetails?._id // Include the actual message ID
+        });
+
+        // Stop typing indicator
+        socket.emit('typing', {
+          senderId: userId,
+          receiverId: selectedContact._id,
+          isTyping: false
+        });
+      }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error sending message:', error.response || error);
+      // Remove the optimistic message
+      setMessages(prevMessages => prevMessages.filter(msg => !msg.isOptimistic));
+      // Notify user of error
+      alert('Failed to send message. Please try again.');
     }
+  };
+
+  // Format time as relative (e.g., "2h ago")
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const date = new Date(timestamp);
+    const seconds = Math.floor((now - date) / 1000);
+    
+    // Less than a minute
+    if (seconds < 60) {
+      return 'now';
+    }
+    
+    // Less than an hour
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+      return `${minutes}m ago`;
+    }
+    
+    // Less than a day
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+      return `${hours}h ago`;
+    }
+    
+    // Less than a week
+    const days = Math.floor(hours / 24);
+    if (days < 7) {
+      return `${days}d ago`;
+    }
+    
+    // Format as date
+    return date.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
   if (loading) {
@@ -263,10 +471,25 @@ const MessagingPage = () => {
           </div>
           <div className="contacts-list">
             {contacts.length > 0 ? (
-              contacts.map((contact) => (
+              // Group and sort contacts: messaged contacts first, sorted by most recent
+              [...contacts]
+                .sort((a, b) => {
+                  // First criteria: contacts with messages come before those without
+                  if (a.hasMessaged && !b.hasMessaged) return -1;
+                  if (!a.hasMessaged && b.hasMessaged) return 1;
+                  
+                  // Second criteria: sort by most recent message
+                  if (a.lastMessage && b.lastMessage) {
+                    return new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp);
+                  }
+                  
+                  // If neither has messages, sort by name
+                  return (a.name || '').localeCompare(b.name || '');
+                })
+                .map((contact) => (
                 <div
                   key={contact._id}
-                  className={`contact-item ${selectedContact && selectedContact._id === contact._id ? 'active' : ''}`}
+                  className={`contact-item ${selectedContact && selectedContact._id === contact._id ? 'active' : ''} ${contact.hasMessaged ? 'has-messages' : ''}`}
                   onClick={() => handleContactSelect(contact)}
                 >
                   <div className="contact-avatar">
@@ -278,12 +501,26 @@ const MessagingPage = () => {
                   </div>
                   <div className="contact-info">
                     <h3>{contact.name}</h3>
+                    {contact.lastMessage && (
+                      <div className="contact-last-message">
+                        <span className={`message-preview ${contact.lastMessage.isFromUser ? 'sent' : 'received'}`}>
+                          {contact.lastMessage.isFromUser ? 'You: ' : ''}
+                          {contact.lastMessage.content.length > 25 
+                            ? `${contact.lastMessage.content.substring(0, 25)}...` 
+                            : contact.lastMessage.content}
+                        </span>
+                        <span className="message-time">
+                          {formatTimeAgo(contact.lastMessage.timestamp)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
             ) : (
               <div className="no-contacts">
                 <p>No contacts available</p>
+                <span>Follow users to start messaging them</span>
               </div>
             )}
           </div>

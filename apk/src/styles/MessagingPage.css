@@ -53,10 +53,11 @@
 .contact-item {
   display: flex;
   align-items: center;
-  padding: 16px;
+  padding: 12px 16px;
   cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .contact-item:hover {
@@ -67,9 +68,14 @@
   background-color: #efefef;
 }
 
+.contact-item.has-messages {
+  background-color: #ffffff;
+}
+
 .contact-avatar {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
   border-radius: 50%;
   overflow: hidden;
   margin-right: 12px;
@@ -87,18 +93,69 @@
 
 .contact-info {
   flex: 1;
+  overflow: hidden;
+  padding-right: 8px;
 }
 
 .contact-info h3 {
   font-size: 14px;
   font-weight: 600;
   margin: 0 0 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contact-last-message {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.message-preview {
+  font-size: 12px;
+  color: #8e8e8e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+
+.message-preview.sent {
+  color: #8e8e8e;
+  font-weight: normal;
+}
+
+.message-preview.received {
+  color: #262626;
+  font-weight: 500;
+}
+
+.message-time {
+  font-size: 11px;
+  color: #8e8e8e;
+  white-space: nowrap;
 }
 
 .no-contacts {
   padding: 24px;
   text-align: center;
   color: #8e8e8e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+}
+
+.no-contacts p {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.no-contacts span {
+  font-size: 13px;
 }
 
 /* Chat container */

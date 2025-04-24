@@ -35,7 +35,7 @@ export default function Register() {
       return;
     }
     try {
-      const response = await axios.post("http://localhost:3080/user/register", formData);
+      const response = await axios.post("http://localhost:30801/user/register", formData);
       alert(response.data.message);
       navigate("/login");
     } catch (error) {

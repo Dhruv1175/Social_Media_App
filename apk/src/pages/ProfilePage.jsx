@@ -7,6 +7,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../utils/firebaseConfig';
 
+// Default image placeholders
+const DEFAULT_AVATAR = '/assets/default-avatar.svg';
+const DEFAULT_POST = '/assets/default-post.svg';
+const DEFAULT_VIDEO = '/assets/default-video.svg';
+
 const PostOptions = ({ post, onEdit, onDelete }) => {
   const [showOptions, setShowOptions] = useState(false);
   const optionsRef = useRef(null);
@@ -178,19 +183,19 @@ const ProfilePage = () => {
 
         // Fetch user profile - Correct route: /user/profile/:id
         const userResponse = await axios.get(
-          `http://localhost:3080/user/profile/${userId}`,
+          `http://localhost:30801/user/profile/${userId}`,
           { headers: authHeader }
         );
 
         // Fetch user posts - Correct route: /user/:userid/post/userpost/get
         const postsResponse = await axios.get(
-          `http://localhost:3080/user/${userId}/post/userpost/get`,
+          `http://localhost:30801/user/${userId}/post/userpost/get`,
           { headers: authHeader }
         );
 
         // Fetch saved posts - Correct route: /user/post/:userid/saved
         const savedPostsResponse = await axios.get(
-          `http://localhost:3080/user/post/${userId}/saved`,
+          `http://localhost:30801/user/post/${userId}/saved`,
           { headers: authHeader }
         );
 
@@ -198,7 +203,7 @@ const ProfilePage = () => {
         let likedPostIds = userLikedPosts;
         try {
           const userLikesResponse = await axios.get(
-            `http://localhost:3080/user/${userId}/likes`,
+            `http://localhost:30801/user/${userId}/likes`,
             { headers: authHeader }
           );
           
@@ -383,7 +388,7 @@ const ProfilePage = () => {
       // Update profile - using PATCH method as per your API endpoint
       const response = await axios({
         method: 'patch',
-        url: `http://localhost:3080/user/update/${userId}`,
+        url: `http://localhost:30801/user/update/${userId}`,
         data: updateData,
         headers: { 
           Authorization: `Bearer ${token}`,
@@ -524,7 +529,7 @@ const ProfilePage = () => {
       
       // Now make the API call using the correct endpoint
       const response = await axios.post(
-        `http://localhost:3080/user/${userId}/post/userpost/${postId}/like`,
+        `http://localhost:30801/user/${userId}/post/userpost/${postId}/like`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -603,7 +608,7 @@ const ProfilePage = () => {
       // Use the correct endpoint path from the backend routes
       // The route is: route.post("/user/post/:userid/:postid/save",verifyToken,savedPost);
       const response = await axios.post(
-        `http://localhost:3080/user/post/${userId}/${postId}/save`,
+        `http://localhost:30801/user/post/${userId}/${postId}/save`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -768,7 +773,7 @@ const ProfilePage = () => {
                 <>
                   <div className="reel-post-item">
                     <img 
-                      src={post.thumbnail || post.image || 'https://via.placeholder.com/400?text=Video'} 
+                      src={post.thumbnail || post.image || DEFAULT_VIDEO} 
                       alt={post.text || 'Reel'} 
                       className="grid-post-image" 
                     />
@@ -873,7 +878,7 @@ const ProfilePage = () => {
       
       // Using the correct route from the backend with proper authentication
       const response = await axios.delete(
-        `http://localhost:3080/user/post/userpost/${selectedPost._id}/delete`,
+        `http://localhost:30801/user/post/userpost/${selectedPost._id}/delete`,
         { 
           headers: { 
             Authorization: `Bearer ${token}`,
@@ -1144,7 +1149,7 @@ const ProfilePage = () => {
               formData.append('type', uploadType); // 'image' or 'video'
               
               const response = await axios.post(
-                `http://localhost:3080/uploads/media`,
+                `http://localhost:30801/uploads/media`,
                 formData,
                 {
                   headers: { 
@@ -1201,7 +1206,7 @@ const ProfilePage = () => {
       
       // Update the post using API
       const response = await axios.patch(
-        `http://localhost:3080/user/post/userpost/${selectedPost._id}/update`,
+        `http://localhost:30801/user/post/userpost/${selectedPost._id}/update`,
         updateData,
         { 
           headers: { 
@@ -1333,7 +1338,7 @@ const ProfilePage = () => {
         <div className="profile-header">
           <div className="profile-pic-container">
             <img
-              src={user?.avatar || 'https://via.placeholder.com/150'}
+              src={user?.avatar || DEFAULT_AVATAR}
               alt="Profile"
               className="profile-pic"
             />
@@ -1419,7 +1424,7 @@ const ProfilePage = () => {
               <div className="avatar-upload">
                 <div className="preview-container">
                   <img 
-                    src={avatarPreview || 'https://via.placeholder.com/150'} 
+                    src={avatarPreview || DEFAULT_AVATAR} 
                     alt="Avatar Preview" 
                     className="avatar-preview"
                   />
@@ -1497,7 +1502,7 @@ const ProfilePage = () => {
                 <div className="post-modal-header">
                   <div className="post-user-info">
                     <img 
-                      src={selectedPost.user?.avatar || user?.avatar || 'https://via.placeholder.com/40'} 
+                      src={selectedPost.user?.avatar || user?.avatar || DEFAULT_AVATAR} 
                       alt="User" 
                       className="post-user-avatar" 
                     />

@@ -47,19 +47,19 @@ function Home() {
 
         // Fetch posts for feed
         const postsResponse = await axios.get(
-          `http://localhost:3080/user/post/${userId}/feed`,
+          `http://localhost:30801/user/post/${userId}/feed`,
           { headers }
         );
 
         // Fetch user data
         const userResponse = await axios.get(
-          `http://localhost:3080/user/profile/${userId}`,
+          `http://localhost:30801/user/profile/${userId}`,
           { headers }
         );
 
         // Fetch user likes
         const likesResponse = await axios.get(
-          `http://localhost:3080/user/${userId}/likes`,
+          `http://localhost:30801/user/${userId}/likes`,
           { headers }
         );
 
@@ -67,7 +67,7 @@ function Home() {
         let savedPosts = [];
         try {
           const savedPostsResponse = await axios.get(
-            `http://localhost:3080/user/post/${userId}/saved`,
+            `http://localhost:30801/user/post/${userId}/saved`,
             { headers }
           );
           if (savedPostsResponse.data && savedPostsResponse.data.success) {

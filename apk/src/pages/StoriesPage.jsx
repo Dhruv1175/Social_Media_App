@@ -5,6 +5,10 @@ import { X, ChevronLeft, ChevronRight, Send, Heart, Camera, Upload, Plus } from 
 import Sidebar from '../components/Sidebar';
 import '../styles/StoriesPage.css';
 
+// Default image placeholders
+const DEFAULT_AVATAR = '/assets/default-avatar.svg';
+const DEFAULT_STORY = '/assets/default-post.svg';
+
 const StoriesPage = () => {
   const navigate = useNavigate();
   const [stories, setStories] = useState([]);
@@ -83,7 +87,7 @@ const StoriesPage = () => {
       
       // Fetch user profile
       const userResponse = await axios.get(
-        `http://localhost:3080/user/profile/${userId}`,
+        `http://localhost:30801/user/profile/${userId}`,
         { headers }
       );
       
@@ -115,7 +119,7 @@ const StoriesPage = () => {
       userId: user._id,
       username: user.username || user.name,
       name: user.name || user.username,
-      profileImageUrl: user.profileImageUrl || user.avatar,
+      profileImageUrl: user.profileImageUrl || user.avatar || DEFAULT_AVATAR,
       stories: [
         {
           id: 'your-story-1',
@@ -376,7 +380,7 @@ const StoriesPage = () => {
             userId: user._id,
             username: user.username || user.name,
             name: user.name || user.username,
-            profileImageUrl: user.profileImageUrl || user.avatar || 'https://via.placeholder.com/150',
+            profileImageUrl: user.profileImageUrl || user.avatar || DEFAULT_AVATAR,
             stories: [newStory]
           };
           updatedStories.unshift(newUserStory);
@@ -401,7 +405,7 @@ const StoriesPage = () => {
       formData.append('file', storyFile);
       formData.append('caption', storyCaption);
       
-      await axios.post(`http://localhost:3080/user/story/create`, formData, {
+      await axios.post(`http://localhost:30801/user/story/create`, formData, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -477,19 +481,19 @@ const StoriesPage = () => {
                     />
                   ) : (
                     <img 
-                      src={userStory.stories[0].imageUrl || 'https://via.placeholder.com/300'} 
+                      src={userStory.stories[0].imageUrl || DEFAULT_STORY} 
                       alt={userStory.username}
                       className="story-preview-media"
-                      onError={(e) => { e.target.src = 'https://via.placeholder.com/300' }}
+                      onError={(e) => { e.target.src = DEFAULT_STORY }}
                     />
                   )}
                   
                   <div className="story-preview-user">
                     <div className="story-preview-avatar">
                       <img 
-                        src={userStory.profileImageUrl || 'https://via.placeholder.com/50'} 
+                        src={userStory.profileImageUrl || DEFAULT_AVATAR} 
                         alt={userStory.username}
-                        onError={(e) => { e.target.src = 'https://via.placeholder.com/50' }}
+                        onError={(e) => { e.target.src = DEFAULT_AVATAR }}
                       />
                     </div>
                     <span className="story-preview-username">{userStory.username}</span>
@@ -528,9 +532,9 @@ const StoriesPage = () => {
               <div className="story-user-info">
                 <div className="story-user-avatar">
                   <img 
-                    src={viewingStory.profileImageUrl || 'https://via.placeholder.com/32'} 
+                    src={viewingStory.profileImageUrl || DEFAULT_AVATAR} 
                     alt={viewingStory.username}
-                    onError={(e) => { e.target.src = 'https://via.placeholder.com/32' }}
+                    onError={(e) => { e.target.src = DEFAULT_AVATAR }}
                   />
                 </div>
                 <span className="story-user-name">{viewingStory.username}</span>
@@ -556,10 +560,10 @@ const StoriesPage = () => {
                 />
               ) : (
                 <img 
-                  src={viewingStory.stories[activeStoryIndex].imageUrl || 'https://via.placeholder.com/800x1200?text=Image+Not+Available'} 
+                  src={viewingStory.stories[activeStoryIndex].imageUrl || DEFAULT_STORY} 
                   className="story-media" 
                   alt="Story content"
-                  onError={(e) => { e.target.src = 'https://via.placeholder.com/800x1200?text=Image+Not+Available' }}
+                  onError={(e) => { e.target.src = DEFAULT_STORY }}
                 />
               )}
               

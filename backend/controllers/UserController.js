@@ -120,3 +120,32 @@ export const updateProfile = async (req, res) => {
     }
 };
 
+export const getAllUsers = async (req, res) => {
+    try {
+        console.log("Getting all users");
+        // Exclude sensitive information like passwords
+        const users = await usermodel.find({}, { password: 0 });
+        
+        if (users && users.length > 0) {
+            console.log(`Found ${users.length} users`);
+            return res.status(200).send({ 
+                users: users,
+                success: true 
+            });
+        } else {
+            console.log("No users found");
+            return res.status(200).send({ 
+                message: "No users found", 
+                users: [],
+                success: false 
+            });
+        }
+    } catch (error) {
+        console.error("Error getting all users:", error);
+        res.status(500).send({ 
+            message: "Error retrieving users", 
+            success: false 
+        });
+    }
+};
+

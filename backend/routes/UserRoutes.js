@@ -1,12 +1,12 @@
 import express from "express";
 import { verifyToken } from "../middleware/VerifyToken.js";
-import { getUserProfile, loginUser, registerUser, updateProfile } from "../controllers/UserController.js";
+import { getUserProfile, loginUser, registerUser, updateProfile, getAllUsers } from "../controllers/UserController.js";
 import { createPost, deletePost, deleteSavedPost, feed, getOnePost, getAllPost, getSavedPost, getUserPost, savedPost, updatePost, getLikeCounts } from "../controllers/PostController.js";
 import { addComment, deleteComment, getComment, updateComment } from "../controllers/CommentController.js";
 import { toggleLikeComment, toggleLikePost, getUserLikes } from "../controllers/LikeController.js";
 import { getFollow, getFollowing, toggleFollow, getAllFollowRelationships, checkFollowStatus } from "../controllers/FollowController.js";
 import { markAllNotificationsAsRead } from "../controllers/NotificationController.js";
-import { DirectMessage, getMessage, sendMessage } from "../controllers/MessageController.js";
+import { DirectMessage, getMessage, sendMessage, getMessagedUsers } from "../controllers/MessageController.js";
 import { searchPosts, searchUser } from "../controllers/SearchControllers.js";
 
 const route = express.Router()
@@ -16,6 +16,7 @@ route.post("/user/register",registerUser);
 route.post("/user/login",loginUser);
 route.get("/user/profile/:id",verifyToken,getUserProfile);
 route.patch("/user/update/:id",verifyToken,updateProfile);
+route.get("/user/get/all",verifyToken,getAllUsers);
 
 //post action routes
 route.post("/user/:userid/post/userpost/create",verifyToken,createPost);
@@ -55,6 +56,7 @@ route.get("/user/:userid/notification",verifyToken,markAllNotificationsAsRead)
 route.post("/user/:userid/receiver/:receiverid/message/send",verifyToken,sendMessage)
 route.get("/user/:userid/message/get",verifyToken,getMessage)
 route.get("/user/:userid/:senderid/message/get",verifyToken,DirectMessage)
+route.get("/user/:userid/messages/contacts",verifyToken,getMessagedUsers)
 
 
 //search action routes

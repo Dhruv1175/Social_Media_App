@@ -27,7 +27,7 @@ const SearchPage = () => {
         }
 
         const response = await axios.get(
-          `http://localhost:3080/user/profile/${userId}`,
+          `http://localhost:30801/user/profile/${userId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -90,7 +90,7 @@ const SearchPage = () => {
       }
       
       const response = await axios.get(
-        `http://localhost:3080/user/search?q=${encodeURIComponent(searchQuery)}`, 
+        `http://localhost:30801/user/search?q=${encodeURIComponent(searchQuery)}`, 
         {
           headers: {
             Authorization: `Bearer ${token}`

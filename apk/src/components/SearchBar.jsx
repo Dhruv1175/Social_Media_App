@@ -4,6 +4,9 @@ import { Search, X, Clock, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/SearchBar.css';
 
+// Default image placeholders
+const DEFAULT_AVATAR = '/assets/default-avatar.svg';
+
 const SearchBar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -83,10 +86,10 @@ const SearchBar = () => {
         return;
       }
       
-      console.log('Making API request to:', `http://localhost:3080/user/search?q=${encodeURIComponent(searchQuery)}`);
+      console.log('Making API request to:', `http://localhost:30801/user/search?q=${encodeURIComponent(searchQuery)}`);
       
       const response = await axios.get(
-        `http://localhost:3080/user/search?q=${encodeURIComponent(searchQuery)}`, 
+        `http://localhost:30801/user/search?q=${encodeURIComponent(searchQuery)}`, 
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -249,7 +252,7 @@ const SearchBar = () => {
                       <Clock size={16} />
                     </div>
                     <img 
-                      src={user.avatar || 'https://via.placeholder.com/40'} 
+                      src={user.avatar || DEFAULT_AVATAR} 
                       alt={user.name} 
                       className="search-result-avatar" 
                     />
@@ -283,7 +286,7 @@ const SearchBar = () => {
                 >
                   <div className="search-result-item-content">
                     <img 
-                      src={user.avatar || 'https://via.placeholder.com/40'} 
+                      src={user.avatar || DEFAULT_AVATAR} 
                       alt={user.name} 
                       className="search-result-avatar" 
                     />

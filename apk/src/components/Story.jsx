@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Image, Plus, X, ChevronLeft, ChevronRight, Send, Heart, MessageCircle, Upload, Camera } from 'lucide-react';
 import '../styles/Story.css';
+import { useNavigate } from 'react-router-dom';
+
+// Default image placeholders
+const DEFAULT_AVATAR = '/assets/default-avatar.svg';
+const DEFAULT_STORY = '/assets/default-post.svg';
 
 const Story = () => {
   // States for stories data and UI control
@@ -83,7 +88,7 @@ const Story = () => {
       }
       
       // Fetch current user profile and following list
-      const response = await axios.get(`http://localhost:3080/user/profile/${userId}`, {
+      const response = await axios.get(`http://localhost:30801/user/profile/${userId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -370,7 +375,7 @@ const Story = () => {
       formData.append('file', storyFile);
       formData.append('caption', storyCaption);
       
-      await axios.post(`http://localhost:3080/user/story/create`, formData, {
+      await axios.post(`http://localhost:30801/user/story/create`, formData, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -451,10 +456,10 @@ const Story = () => {
             <div className={`story-avatar-border ${hasUnviewedStories(userStory) ? '' : 'viewed'}`}>
               <div className="story-avatar-container">
                 <img 
-                  src={userStory.profileImageUrl || 'https://via.placeholder.com/150'} 
+                  src={userStory.profileImageUrl || DEFAULT_AVATAR} 
                   alt={userStory.username}
                   className="story-avatar"
-                  onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
+                  onError={(e) => { e.target.src = DEFAULT_AVATAR }}
                 />
               </div>
             </div>
@@ -496,9 +501,9 @@ const Story = () => {
               <div className="story-user-info">
                 <div className="story-user-avatar">
                   <img 
-                    src={viewingStory.profileImageUrl} 
+                    src={viewingStory.profileImageUrl || DEFAULT_AVATAR} 
                     alt={viewingStory.username}
-                    onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
+                    onError={(e) => { e.target.src = DEFAULT_AVATAR }}
                   />
                 </div>
                 <span className="story-user-name">{viewingStory.username}</span>
@@ -524,10 +529,10 @@ const Story = () => {
                 />
               ) : (
                 <img 
-                  src={viewingStory.stories[activeStoryIndex].imageUrl} 
+                  src={viewingStory.stories[activeStoryIndex].imageUrl || DEFAULT_STORY} 
                   className="story-media" 
                   alt="Story content"
-                  onError={(e) => { e.target.src = 'https://via.placeholder.com/800x1200?text=Image+Not+Available' }}
+                  onError={(e) => { e.target.src = DEFAULT_STORY }}
                 />
               )}
               

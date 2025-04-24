@@ -263,7 +263,7 @@ const CreatePost = ({ onPostCreated, onCancel }) => {
       
       // Create post via API
       const response = await axios.post(
-        `http://localhost:3080/user/${userId}/post/userpost/create`,
+        `http://localhost:30801/user/${userId}/post/userpost/create`,
         postData,
         { 
           headers: { 

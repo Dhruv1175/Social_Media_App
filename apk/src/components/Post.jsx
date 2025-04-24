@@ -45,10 +45,10 @@ const Posts = ({ posts: initialPosts, user }) => {
 
       // Fetch both posts and like info in parallel
       const [postsResponse, likesResponse] = await Promise.all([
-        axios.get('http://localhost:3080/api/getPosts', {
+        axios.get('http://localhost:30801/api/getPosts', {
           headers: authHeaders()
         }),
-        axios.get(`http://localhost:3080/user/${userId}/likes`, {
+        axios.get(`http://localhost:30801/user/${userId}/likes`, {
           headers: authHeaders()
         })
       ]);
@@ -60,7 +60,7 @@ const Posts = ({ posts: initialPosts, user }) => {
           const likedPostIds = new Set(likesResponse.data.likedPosts.map(post => post._id));
           
           // Fetch the latest like counts for all posts
-          const likesCountsResponse = await axios.get('http://localhost:3080/api/posts/likeCounts', {
+          const likesCountsResponse = await axios.get('http://localhost:30801/api/posts/likeCounts', {
             headers: authHeaders()
           });
           
@@ -158,7 +158,7 @@ const Posts = ({ posts: initialPosts, user }) => {
     try {
       setIsSubmitting(true);
       const response = await axios.patch(
-        `http://localhost:3080/api/post/${postId}`,
+        `http://localhost:30801/api/post/${postId}`,
         { text: editedPostText[postId] },
         { headers: authHeaders() }
       );
@@ -191,7 +191,7 @@ const Posts = ({ posts: initialPosts, user }) => {
     try {
       setIsSubmitting(true);
       const response = await axios.delete(
-        `http://localhost:3080/api/post/${postId}`,
+        `http://localhost:30801/api/post/${postId}`,
         { headers: authHeaders() }
       );
       
@@ -250,7 +250,7 @@ const Posts = ({ posts: initialPosts, user }) => {
       
     // Try API update but don't revert UI on failure
     try {
-      const endpoint = `http://localhost:3080/user/${userId}/post/userpost/${postId}/like`;
+      const endpoint = `http://localhost:30801/user/${userId}/post/userpost/${postId}/like`;
       await axios.post(endpoint, null, { headers: authHeaders() });
       console.log('Like update synced with server');
     } catch (error) {
@@ -303,7 +303,7 @@ const Posts = ({ posts: initialPosts, user }) => {
 
     // Try API update but don't revert UI on failure
     try {
-      const endpoint = `http://localhost:3080/user/post/${userId}/${postId}/save`;
+      const endpoint = `http://localhost:30801/user/post/${userId}/${postId}/save`;
       await axios.post(endpoint, null, { headers: authHeaders() });
       
       // After successful save, update the cachedFeedPosts to reflect this change

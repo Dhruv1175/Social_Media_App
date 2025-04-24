@@ -31,7 +31,7 @@ const Sidebar = ({ user: propUser }) => {
         }
 
         const response = await axios.get(
-          `http://localhost:3080/user/profile/${userId}`,
+          `http://localhost:30801/user/profile/${userId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -116,7 +116,7 @@ const Sidebar = ({ user: propUser }) => {
             <span className="nav-text">Messages</span>
           </Link>
           
-          <Link to="#" onClick={handleCreate} className={`nav-item ${isActive('/create') ? 'active' : ''}`}>
+          <Link to="#" className={`nav-item ${isActive('/create') ? 'active' : ''}`} onClick={handleCreate}>
             <PlusSquare className="nav-icon" />
             <span className="nav-text">Create</span>
           </Link>

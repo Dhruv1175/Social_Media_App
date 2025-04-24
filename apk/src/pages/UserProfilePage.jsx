@@ -4,6 +4,12 @@ import axios from 'axios';
 import Sidebar from '../components/Sidebar';
 import { Grid, Bookmark, User, MoreHorizontal, Edit, Trash2, Heart, MessageCircle, Share2, X } from 'lucide-react';
 import '../styles/UserProfilePage.css';
+import '../styles/ProfilePage.css'; // Re-using the same styles as ProfilePage
+
+// Default image placeholders
+const DEFAULT_AVATAR = '/assets/default-avatar.svg';
+const DEFAULT_POST = '/assets/default-post.svg';
+const DEFAULT_VIDEO = '/assets/default-video.svg';
 
 // PostOptions component to better handle options menu
 const PostOptions = ({ post, currentUser, onEdit, onDelete }) => {
@@ -127,7 +133,7 @@ const UserProfilePage = () => {
 
         // Fetch current logged-in user
         const currentUserResponse = await axios.get(
-          `http://localhost:3080/user/profile/${currentUserId}`,
+          `http://localhost:30801/user/profile/${currentUserId}`,
           { headers }
         );
         
@@ -135,7 +141,7 @@ const UserProfilePage = () => {
 
         // Fetch profile user data
         const profileResponse = await axios.get(
-          `http://localhost:3080/user/profile/${userId}`,
+          `http://localhost:30801/user/profile/${userId}`,
           { headers }
         );
 
@@ -176,7 +182,7 @@ const UserProfilePage = () => {
 
         // Fetch user posts - make sure we're using the right endpoint
         const postsResponse = await axios.get(
-          `http://localhost:3080/user/${userId}/post/userpost/get`,
+          `http://localhost:30801/user/${userId}/post/userpost/get`,
           { headers }
         );
 
@@ -226,8 +232,8 @@ const UserProfilePage = () => {
       
       // Use the correct API endpoint formats from the backend routes
       const endpoint = isFollowing 
-        ? `http://localhost:3080/user/${currentUserId}/${profileUser._id}/unfollow`
-        : `http://localhost:3080/user/${currentUserId}/${profileUser._id}/follow`;
+        ? `http://localhost:30801/user/${currentUserId}/${profileUser._id}/unfollow`
+        : `http://localhost:30801/user/${currentUserId}/${profileUser._id}/follow`;
       
       console.log(`Using endpoint: ${endpoint} for ${isFollowing ? 'unfollow' : 'follow'} action`);
       
@@ -325,7 +331,7 @@ const UserProfilePage = () => {
       
       // Get fresh followers data
       const followersResponse = await axios.get(
-        `http://localhost:3080/user/${profileUser._id}/followers`,
+        `http://localhost:30801/user/${profileUser._id}/followers`,
         { headers }
       );
       
@@ -343,7 +349,7 @@ const UserProfilePage = () => {
       
       // Also get fresh profile data as a backup check
       const profileResponse = await axios.get(
-        `http://localhost:3080/user/profile/${profileUser._id}`,
+        `http://localhost:30801/user/profile/${profileUser._id}`,
         { headers }
       );
       
@@ -378,7 +384,7 @@ const UserProfilePage = () => {
       if (!isUserFollowing) {
         try {
           const directCheckResponse = await axios.get(
-            `http://localhost:3080/follows/check/${currentUserId}/${profileUser._id}`,
+            `http://localhost:30801/follows/check/${currentUserId}/${profileUser._id}`,
             { headers }
           );
           
@@ -512,7 +518,7 @@ const UserProfilePage = () => {
       const headers = { Authorization: `Bearer ${token}` };
       
       const response = await axios.patch(
-        `http://localhost:3080/api/post/${selectedPost._id}`,
+        `http://localhost:30801/api/post/${selectedPost._id}`,
         { text: editedPostText },
         { headers }
       );
@@ -573,7 +579,7 @@ const UserProfilePage = () => {
       
       // Fallback to REST API - token is already defined at the top of the function
       const response = await axios.delete(
-        `http://localhost:3080/api/post/${selectedPost._id}`,
+        `http://localhost:30801/api/post/${selectedPost._id}`,
         { headers }
       );
       
@@ -612,7 +618,7 @@ const UserProfilePage = () => {
           <div className="profile-header">
             <div className="profile-pic-container">
               <img
-                src={profileUser?.avatar || 'https://via.placeholder.com/150'}
+                src={profileUser?.avatar || DEFAULT_AVATAR}
                 alt="Profile"
                 className="profile-pic"
               />
@@ -699,7 +705,7 @@ const UserProfilePage = () => {
                 <div className="post-modal-header">
                   <div className="post-user-info">
                     <img 
-                      src={profileUser?.avatar || 'https://via.placeholder.com/150'} 
+                      src={profileUser?.avatar || DEFAULT_AVATAR} 
                       alt="User avatar" 
                       className="post-user-avatar" 
                     />

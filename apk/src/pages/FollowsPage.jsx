@@ -5,6 +5,9 @@ import Sidebar from '../components/Sidebar';
 import { Users, UserPlus, UserCheck, Search, X, Sparkles } from 'lucide-react';
 import '../styles/FollowsPage.css';
 
+// Default image placeholders
+const DEFAULT_AVATAR = '/assets/default-avatar.svg';
+
 const FollowsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,22 +43,34 @@ const FollowsPage = () => {
 
       // Fetch current user
       const currentUserResponse = await axios.get(
-        `http://localhost:3080/user/profile/${userId}`,
+        `http://localhost:30801/user/profile/${userId}`,
         { headers }
       );
       setCurrentUser(currentUserResponse.data.exist);
 
       // Fetch all users - using correct endpoint from UserRoutes.js
-      const allUsersResponse = await axios.get(
-        'http://localhost:3080/user/search',
-        { headers }
-      );
-      
-      if (allUsersResponse.data && allUsersResponse.data.users) {
-        setAllUsers(allUsersResponse.data.users.filter(user => user._id !== userId));
-      } else {
-        console.error('Failed to get all users or unexpected response format');
+      try {
+        console.log("Fetching all users...");
+        const allUsersResponse = await axios.get(
+          `http://localhost:30801/user/get/all`,
+          { headers }
+        );
+        
+        if (allUsersResponse.data && allUsersResponse.data.users) {
+          console.log(`Received ${allUsersResponse.data.users.length} users`);
+          setAllUsers(allUsersResponse.data.users.filter(user => user._id !== userId));
+        } else {
+          console.error('Failed to get all users or unexpected response format:', allUsersResponse.data);
+          setAllUsers([]);
+        }
+      } catch (allUsersError) {
+        console.error('Error fetching all users:', allUsersError);
+        // Don't fail the entire operation if we can't get all users
         setAllUsers([]);
+        // If this is a 404, it means the endpoint isn't available yet
+        if (allUsersError.response && allUsersError.response.status === 404) {
+          console.warn('The /user/get/all endpoint is not available - this is expected if you just updated the backend');
+        }
       }
       
       // Determine which user profile we're viewing
@@ -65,7 +80,7 @@ const FollowsPage = () => {
       // Get followers list - use profileId if available, otherwise use logged-in user
       try {
         const followersResponse = await axios.get(
-          `http://localhost:3080/user/${targetUserId}/followers`,
+          `http://localhost:30801/user/${targetUserId}/followers`,
           { headers }
         );
         
@@ -94,7 +109,7 @@ const FollowsPage = () => {
       // Get following list - use profileId if available, otherwise use logged-in user
       try {
         const followingResponse = await axios.get(
-          `http://localhost:3080/user/${targetUserId}/following`,
+          `http://localhost:30801/user/${targetUserId}/following`,
           { headers }
         );
         
@@ -200,8 +215,8 @@ const FollowsPage = () => {
       
       // Use the correct endpoint format from the backend routes
       const endpoint = isCurrentlyFollowing
-        ? `http://localhost:3080/user/${userId}/${userBeingActedOn}/unfollow`
-        : `http://localhost:3080/user/${userId}/${userBeingActedOn}/follow`;
+        ? `http://localhost:30801/user/${userId}/${userBeingActedOn}/unfollow`
+        : `http://localhost:30801/user/${userId}/${userBeingActedOn}/follow`;
       
       console.log(`Using endpoint: ${endpoint} for ${isCurrentlyFollowing ? 'unfollow' : 'follow'} action`);
       
@@ -252,7 +267,7 @@ const FollowsPage = () => {
           try {
             // Refetch following status to ensure it's updated
             const followingResponse = await axios.get(
-              `http://localhost:3080/user/${userId}/following`,
+              `http://localhost:30801/user/${userId}/following`,
               { headers }
             );
             
@@ -330,20 +345,37 @@ const FollowsPage = () => {
     } else if (filter === 'following') {
       filteredUsers = [...following];
     } else if (filter === 'recommended') {
-      // Check if we're viewing our own or another user's profile
-      if (profileId && profileId !== currentUserId) {
-        // For another user's profile, we should show a different set of recommendations
-        // For example, users they follow that we don't follow yet
-        // This is simplified - you might want more complex recommendation logic
-        filteredUsers = allUsers.filter(user => 
-          !following.some(f => f._id === user._id) && 
-          user._id !== currentUserId
-        );
+      // Check if we have users data
+      if (allUsers.length === 0) {
+        // If we don't have allUsers, create recommendations from followers and following
+        console.log('No users data, generating recommendations from followers and following');
+        
+        // Create a set of IDs to exclude (the current user and users already being followed)
+        const excludeIds = new Set([
+          currentUserId,
+          ...following.map(f => f._id)
+        ]);
+        
+        // Add followers who aren't being followed yet
+        filteredUsers = followers.filter(user => !excludeIds.has(user._id));
+        
+        // We could also consider friends-of-friends recommendations here
       } else {
-        // Standard recommendations for current user
-        filteredUsers = allUsers.filter(user => 
-          !following.some(f => f._id === user._id)
-        );
+        // Check if we're viewing our own or another user's profile
+        if (profileId && profileId !== currentUserId) {
+          // For another user's profile, we should show a different set of recommendations
+          // For example, users they follow that we don't follow yet
+          // This is simplified - you might want more complex recommendation logic
+          filteredUsers = allUsers.filter(user => 
+            !following.some(f => f._id === user._id) && 
+            user._id !== currentUserId
+          );
+        } else {
+          // Standard recommendations for current user
+          filteredUsers = allUsers.filter(user => 
+            !following.some(f => f._id === user._id)
+          );
+        }
       }
     }
     
@@ -558,7 +590,7 @@ const FollowsPage = () => {
                     onClick={() => handleUserClick(user._id || user.id)}
                   >
                     <img 
-                      src={user.avatar || 'https://via.placeholder.com/50'} 
+                      src={user.avatar || DEFAULT_AVATAR} 
                       alt={user.name} 
                       className="user-avatar"
                     />
