@@ -5,12 +5,14 @@ import Posts from '../components/Post';
 import Story from '../components/Story';
 import '../styles/Home.css';
 import { useNavigate } from 'react-router-dom';
+import { Search, Users, RefreshCw } from 'lucide-react';
 
 function Home() {
   const [posts, setPosts] = useState([]);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
 
   // Fetch data from the database
@@ -107,6 +109,7 @@ function Home() {
         setPosts(processedPosts);
         setUser(userResponse.data.exist || null);
         setLoading(false);
+        setRefreshing(false);
 
         // Save processed data to localStorage
         localStorage.setItem('cachedFeedPosts', JSON.stringify(processedPosts));
@@ -123,6 +126,7 @@ function Home() {
         console.error('Error fetching data:', error);
         setError('Failed to load your feed. Please try again later.');
         setLoading(false);
+        setRefreshing(false);
         
         // Try to load cached data if available
         const cachedPosts = localStorage.getItem('cachedFeedPosts');
@@ -146,6 +150,70 @@ function Home() {
 
     fetchData();
   }, [navigate]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    // Clear cache to force a fresh load
+    localStorage.removeItem('cachedFeedPosts');
+    // Trigger the effect to reload data
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        const userId = localStorage.getItem('userId');
+
+        if (!token || !userId) {
+          navigate('/login');
+          return;
+        }
+
+        const headers = { Authorization: `Bearer ${token}` };
+
+        // Fetch fresh data
+        const postsResponse = await axios.get(
+          `http://localhost:30801/user/post/${userId}/feed`,
+          { headers }
+        );
+
+        const userResponse = await axios.get(
+          `http://localhost:30801/user/profile/${userId}`,
+          { headers }
+        );
+
+        const likesResponse = await axios.get(
+          `http://localhost:30801/user/${userId}/likes`,
+          { headers }
+        );
+
+        // Process and update state
+        const processedPosts = (postsResponse.data.posts || []).map(post => {
+          const isLiked = Array.isArray(post.likes) 
+            ? post.likes.includes(userId) 
+            : false;
+
+          return {
+            ...post,
+            isLiked,
+            isSaved: false,
+            likes: Array.isArray(post.likes) ? post.likes.length : post.likes || 0,
+          };
+        });
+
+        setPosts(processedPosts);
+        setUser(userResponse.data.exist || null);
+        
+        // Update cache
+        localStorage.setItem('cachedFeedPosts', JSON.stringify(processedPosts));
+        localStorage.setItem('cachedUser', JSON.stringify(userResponse.data.exist || null));
+        
+        setRefreshing(false);
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+        setRefreshing(false);
+      }
+    };
+
+    fetchData();
+  };
 
   if (loading) {
     return (
@@ -173,6 +241,19 @@ function Home() {
 
       <main className="main-content">
         <div className="content-container">
+          {/* Page Header with refresh button */}
+          <div className="feed-header">
+            <h1 className="feed-title">Home</h1>
+            <button 
+              className={`refresh-button ${refreshing ? 'refreshing' : ''}`}
+              onClick={handleRefresh}
+              disabled={refreshing}
+              aria-label="Refresh feed"
+            >
+              <RefreshCw size={20} />
+            </button>
+          </div>
+          
           {/* Stories Section */}
           <Story />
           
@@ -188,6 +269,7 @@ function Home() {
                   onClick={() => navigate('/search')}
                   className="find-users-button"
                 >
+                  <Users size={18} />
                   Find users to follow
                 </button>
               </div>
@@ -195,7 +277,7 @@ function Home() {
           </div>
         </div>
         
-        {/* Suggestions Section */}
+        {/* Suggestions Sidebar */}
         <div className="suggestions-sidebar">
           {/* User profile summary */}
           {user && (
@@ -204,7 +286,9 @@ function Home() {
                 {user.avatar ? (
                   <img src={user.avatar} alt={user.name} />
                 ) : (
-                  <div className="avatar-placeholder"></div>
+                  <div className="avatar-placeholder">
+                    {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+                  </div>
                 )}
               </div>
               <div className="user-info">
@@ -221,7 +305,14 @@ function Home() {
           </div>
           
           <div className="suggestions-placeholder">
-            <p>Coming soon!</p>
+            <Search size={24} className="suggestions-icon" />
+            <p>Discover people to follow</p>
+            <button 
+              onClick={() => navigate('/search')}
+              className="explore-users-button"
+            >
+              Explore
+            </button>
           </div>
           
           {/* Footer links */}
@@ -231,10 +322,10 @@ function Home() {
             <a href="#">API</a> · 
             <a href="#">Privacy</a> · 
             <a href="#">Terms</a>
-        </div>
+          </div>
 
           <div className="copyright">
-            © 2023 Social Media App
+            © {new Date().getFullYear()} Social Media App
           </div>
         </div>
       </main>

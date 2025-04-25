@@ -1,16 +1,17 @@
 .sidebar {
-  width: 72px;
-  height: 100vh;
   position: fixed;
   left: 0;
   top: 0;
-  background-color: #fff;
-  border-right: 1px solid #dbdbdb;
+  height: 100vh;
+  width: 72px;
+  border-right: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
   display: flex;
   flex-direction: column;
-  z-index: 10;
   transition: width 0.3s ease;
-  overflow: hidden;
+  z-index: 1000;
+  overflow-x: hidden;
+  padding: 20px 12px;
 }
 
 .sidebar:hover {
@@ -18,27 +19,25 @@
 }
 
 .sidebar-logo {
-  padding: 25px 0 20px 0;
   display: flex;
-  justify-content: center;
   align-items: center;
+  padding: 12px;
+  margin-bottom: 24px;
 }
 
-.sidebar-logo .logo-icon {
+.logo-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--text-primary);
+}
+
+.logo-text {
+  margin-left: 16px;
   font-size: 24px;
-  color: #262626;
-}
-
-.sidebar-logo .logo-text {
-  margin-left: 10px;
   font-weight: 700;
-  font-size: 24px;
   display: none;
-}
-
-.sidebar:hover .sidebar-logo {
-  justify-content: flex-start;
-  padding-left: 24px;
+  white-space: nowrap;
+  color: var(--text-primary);
 }
 
 .sidebar:hover .logo-text {
@@ -49,83 +48,109 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 10px 0;
+  gap: 8px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  padding: 12px 12px 12px 16px;
-  margin: 4px 0;
-  color: #262626;
-  text-decoration: none;
+  padding: 12px;
   border-radius: 8px;
-  margin-left: 8px;
-  margin-right: 8px;
   cursor: pointer;
-  position: relative;
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: background-color 0.2s;
 }
 
 .nav-item:hover {
-  background-color: #f2f2f2;
+  background-color: var(--hover-overlay);
 }
 
 .nav-item.active {
-  font-weight: 700;
+  font-weight: 600;
+  background-color: var(--nav-active);
 }
 
 .nav-icon {
-  font-size: 24px;
-  min-width: 24px;
-  max-width: 24px;
-  max-height: 24px;
+  width: 24px;
+  height: 24px;
+  color: var(--text-primary);
 }
 
 .nav-text {
   margin-left: 16px;
   font-size: 16px;
   display: none;
+  white-space: nowrap;
+  color: var(--text-primary);
 }
 
 .sidebar:hover .nav-text {
   display: block;
 }
 
-.profile-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 12px 12px 16px;
-  margin: 4px 8px 16px 8px;
-  color: #262626;
-  text-decoration: none;
-  border-radius: 8px;
-}
-
-.profile-item:hover {
-  background-color: #f2f2f2;
-}
-
-.profile-pic {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.profile-text {
-  margin-left: 16px;
-  font-size: 16px;
-  display: none;
-}
-
-.sidebar:hover .profile-text {
-  display: block;
-}
-
 .sidebar-footer {
   display: flex;
   flex-direction: column;
-  padding: 10px 0 20px 0;
+  gap: 8px;
+  margin-top: auto;
+}
+
+/* Theme toggle button with improved styling */
+.theme-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.theme-toggle .nav-icon {
+  transition: transform 0.5s ease, color 0.3s ease;
+}
+
+.theme-toggle:hover .nav-icon {
+  transform: rotate(15deg);
+}
+
+/* Dark mode styling */
+.theme-dark .theme-toggle .nav-icon {
+  color: #ffcc00;
+  filter: drop-shadow(0 0 3px rgba(255, 204, 0, 0.3));
+}
+
+/* Light mode styling */
+.theme-light .theme-toggle .nav-icon {
+  color: #5c6bc0;
+  filter: drop-shadow(0 0 3px rgba(92, 107, 192, 0.2));
+}
+
+/* Animation for theme transition */
+@keyframes themeTransition {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.theme-toggle:active .nav-icon {
+  animation: themeTransition 0.5s ease;
+}
+
+/* Custom style for rounded profile picture in sidebar */
+.sidebar .profile-pic {
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 /* Remove search-related CSS */
@@ -183,9 +208,9 @@
 }
 
 .create-modal {
-  background-color: white;
+  background-color: var(--card-bg);
   border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 30px var(--shadow-color);
   width: 95%;
   max-width: 700px;
   max-height: 90vh;
@@ -222,11 +247,11 @@
 
 .modal-header {
   padding: 14px 16px;
-  border-bottom: 1px solid #dbdbdb;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: #ffffff;
+  background-color: var(--bg-primary);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -239,6 +264,7 @@
   text-align: center;
   flex: 1;
   letter-spacing: 0.5px;
+  color: var(--text-primary);
 }
 
 .close-button {
@@ -246,7 +272,7 @@
   border: none;
   font-size: 22px;
   cursor: pointer;
-  color: #262626;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -257,7 +283,7 @@
 }
 
 .close-button:hover {
-  background-color: #f0f0f0;
+  background-color: var(--hover-overlay);
   transform: rotate(90deg);
 }
 
@@ -597,4 +623,85 @@
 .post-creator > :last-child {
   margin-bottom: 20px;
   padding-bottom: 10px;
+}
+
+/* Improve sidebar icons in dark mode */
+.theme-dark .nav-icon {
+  opacity: 0.85;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.theme-dark .nav-item:hover .nav-icon,
+.theme-dark .nav-item.active .nav-icon {
+  opacity: 1;
+}
+
+/* Enhanced active state for nav items in dark mode */
+.theme-dark .nav-item.active {
+  background-color: rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+.theme-dark .nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 3px;
+  background-color: var(--accent-color);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Improved hover states */
+.theme-dark .nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  transition: background-color 0.2s ease;
+}
+
+/* Dark mode modal improvements */
+.theme-dark .modal-overlay {
+  backdrop-filter: blur(8px);
+}
+
+.theme-dark .create-modal {
+  border: 1px solid #2a2a2a;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Theme toggle button animation container */
+.theme-toggle-icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Button toggling animation */
+.theme-toggling .nav-icon {
+  animation: rotate-icon 0.5s ease-in-out;
+}
+
+@keyframes rotate-icon {
+  0% {
+    transform: rotate(0) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(0.5);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+/* Enhanced dark mode toggle button */
+.theme-dark .theme-toggle {
+  overflow: visible;
+}
+
+.theme-dark .theme-toggle .nav-icon {
+  filter: drop-shadow(0 0 5px rgba(255, 204, 0, 0.4));
 } 

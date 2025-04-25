@@ -1,6 +1,5 @@
-<svg width="150" height="150" xmlns="http://www.w3.org/2000/svg">
-  <rect width="150" height="150" fill="#f0f0f0"/>
-  <circle cx="75" cy="60" r="30" fill="#d0d0d0"/>
-  <circle cx="75" cy="150" r="60" fill="#d0d0d0"/>
-  <text x="75" y="75" font-family="Arial" font-size="12" text-anchor="middle" fill="#707070">No Avatar</text>
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="100" cy="100" r="100" fill="#E1E1E1"/>
+  <circle cx="100" cy="85" r="35" fill="#A0A0A0"/>
+  <path d="M160 155C160 132.909 132.548 115 100 115C67.4518 115 40 132.909 40 155C40 177.091 67.4518 195 100 195C132.548 195 160 177.091 160 155Z" fill="#A0A0A0"/>
 </svg> 

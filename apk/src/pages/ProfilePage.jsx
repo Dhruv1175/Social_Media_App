@@ -341,6 +341,16 @@ const ProfilePage = () => {
   }, []);
 
   const handleOpenEditModal = () => {
+    // Initialize form data with current user data
+    setFormData({
+      name: user?.name || '',
+      bio: user?.bio || '',
+      avatar: ''
+    });
+    
+    // Set avatar preview to current user avatar
+    setAvatarPreview(user?.avatar || '');
+    
     setShowEditModal(true);
   };
 
@@ -376,41 +386,127 @@ const ProfilePage = () => {
     try {
       const userId = localStorage.getItem('userId');
       const token = localStorage.getItem('accessToken');
-
-      // Create form data for multipart/form-data
-      const updateData = new FormData();
-      updateData.append('name', formData.name);
-      updateData.append('bio', formData.bio);
-      if (formData.avatar && formData.avatar instanceof File) {
-        updateData.append('avatar', formData.avatar);
-      }
-
-      // Update profile - using PATCH method as per your API endpoint
-      const response = await axios({
+      
+      // First update basic profile info without avatar
+      const updateData = {
+        name: formData.name,
+        bio: formData.bio
+      };
+      
+      console.log('Updating profile data:', updateData);
+      
+      // Update basic profile information
+      const profileResponse = await axios({
         method: 'patch',
         url: `http://localhost:30801/user/update/${userId}`,
         data: updateData,
         headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
+          Authorization: `Bearer ${token}`
         }
       });
+      
+      console.log('Profile update response:', profileResponse.data);
 
-      // Check if response is successful
-      if (response.data && response.status === 200) {
-        // Update local user state
+      // If we have a new avatar file, upload it to Firebase
+      let newAvatarUrl = user?.avatar || '';
+      
+      if (formData.avatar && formData.avatar instanceof File) {
+        try {
+          console.log('Uploading new avatar file to Firebase:', formData.avatar.name);
+          
+          // Create a unique filename for the avatar
+          const safeFileName = formData.avatar.name.replace(/[^a-zA-Z0-9.]/g, '_');
+          const fileName = `avatars/${userId}_${Date.now()}_${safeFileName}`;
+          
+          // Create Firebase storage reference
+          const storageRef = ref(storage, fileName);
+          
+          // Upload file to Firebase
+          const uploadTask = uploadBytesResumable(storageRef, formData.avatar);
+          
+          // Handle upload progress and completion
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              console.log('Avatar upload progress:', progress);
+            },
+            (error) => {
+              console.error('Error uploading avatar to Firebase:', error);
+              throw error;
+            }
+          );
+          
+          // Wait for upload to complete
+          await uploadTask;
+          
+          // Get the download URL
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          console.log('Avatar uploaded successfully, URL:', downloadURL);
+          
+          // Update user profile with the Firebase URL
+          const avatarUpdateResponse = await axios({
+            method: 'patch',
+            url: `http://localhost:30801/user/update/${userId}`,
+            data: { avatar: downloadURL },
+            headers: { 
+              Authorization: `Bearer ${token}`
+            }
+          });
+          
+          console.log('Avatar update response:', avatarUpdateResponse.data);
+          
+          if (avatarUpdateResponse.data && avatarUpdateResponse.data.success) {
+            newAvatarUrl = downloadURL;
+          }
+        } catch (avatarError) {
+          console.error('Error uploading avatar to Firebase:', avatarError);
+          if (avatarError.response) {
+            console.error('Error response:', avatarError.response.data);
+          }
+          alert('Profile updated but avatar upload failed. Please try again later.');
+        }
+      }
+      
+      // If basic profile update was successful
+      if (profileResponse.data && profileResponse.data.success) {
+        // Update local user state with all changes
         setUser({
           ...user,
           name: formData.name,
           bio: formData.bio,
-          avatar: avatarPreview
+          avatar: newAvatarUrl
         });
 
-        // Close modal
+        // Also update cached user data
+        const cachedUser = JSON.parse(localStorage.getItem('cachedUser') || '{}');
+        localStorage.setItem('cachedUser', JSON.stringify({
+          ...cachedUser,
+          name: formData.name,
+          bio: formData.bio,
+          avatar: newAvatarUrl
+        }));
+
+        alert('Profile updated successfully!');
         setShowEditModal(false);
+      } else {
+        alert('Failed to update profile: ' + (profileResponse.data?.message || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error updating profile:', error);
+      let errorMessage = 'Error updating profile';
+      
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        errorMessage += ': ' + (error.response.data?.message || error.message);
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+        errorMessage += ': Server not responding';
+      } else {
+        errorMessage += ': ' + error.message;
+      }
+      
+      alert(errorMessage);
     }
   };
 
@@ -1331,28 +1427,27 @@ const ProfilePage = () => {
   return (
     <div className="profile-page">
       <Sidebar user={user} />
-      
-      <div className="profile-content">
+      <div className="profile-container">
         <div className="profile-section">
-      <div className="profile-main">
-        <div className="profile-header">
-          <div className="profile-pic-container">
-            <img
-              src={user?.avatar || DEFAULT_AVATAR}
-              alt="Profile"
-              className="profile-pic"
-            />
-          </div>
-          <div className="profile-info">
-            <div className="profile-top">
-              <h2>{user?.name || 'Username'}</h2>
-              <div className="action-buttons">
-                <button className="primary-button" onClick={handleOpenEditModal}>Edit Profile</button>
-                <button className="icon-button">
-                  <Settings className="settings-icon" />
-                </button>
+          <div className="profile-main">
+            <div className="profile-header">
+              <div className="profile-pic-container">
+                <img
+                  src={user?.avatar || DEFAULT_AVATAR}
+                  alt="Profile"
+                  className="profile-pic"
+                />
               </div>
-            </div>
+              <div className="profile-info">
+                <div className="profile-top">
+                  <h2>{user?.name || 'Username'}</h2>
+                  <div className="action-buttons">
+                    <button className="primary-button" onClick={handleOpenEditModal}>Edit Profile</button>
+                    <button className="icon-button">
+                      <Settings className="settings-icon" />
+                    </button>
+                  </div>
+                </div>
                 <div className="profile-stats">
                   <div className="stat">
                     <span className="stat-count">{posts.length}</span>
@@ -1372,18 +1467,17 @@ const ProfilePage = () => {
                     <span className="stat-count">{user?.following?.length || 0}</span>
                     <span className="stat-label">following</span>
                   </div>
+                </div>
+                <div className="bio">
+                  <p>{user?.bio || 'Bio description here'}</p>
+                </div>
+              </div>
             </div>
-            <div className="bio">
-              <p>{user?.bio || 'Bio description here'}</p>
-            </div>
-          </div>
-        </div>
-            
-        <div className="post-navigation">
-          <button
-            className={`tab-button ${activeTab === 'posts' ? 'active' : ''}`}
-            onClick={() => setActiveTab('posts')}
-          >
+            <div className="post-navigation">
+              <button
+                className={`tab-button ${activeTab === 'posts' ? 'active' : ''}`}
+                onClick={() => setActiveTab('posts')}
+              >
                 <Grid size={16} />
                 <span>POSTS</span>
               </button>
@@ -1393,16 +1487,15 @@ const ProfilePage = () => {
               >
                 <Video size={16} />
                 <span>REELS</span>
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'saved' ? 'active' : ''}`}
-            onClick={() => setActiveTab('saved')}
-          >
+              </button>
+              <button
+                className={`tab-button ${activeTab === 'saved' ? 'active' : ''}`}
+                onClick={() => setActiveTab('saved')}
+              >
                 <Bookmark size={16} />
                 <span>SAVED</span>
-          </button>
-        </div>
-                
+              </button>
+            </div>
             <div className="posts-container">
               {renderPostsGrid(getFilteredPosts())}
             </div>

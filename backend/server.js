@@ -7,12 +7,54 @@ import cors from 'cors';
 import http from 'http';
 import { Server } from 'socket.io';
 import messagemodel from "./models/MessageModel.js";
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import mongoose from 'mongoose';
+import usermodel from "./models/UserModel.js";
+import { MulterError } from "multer";
 
 dotenv.config()
 const app = express()
 app.use(cors())
 app.use(CookieParser())
 app.use(express.json())
+
+// Configure multer for handling file uploads
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const uploadsDir = path.join(__dirname, 'uploads')
+
+// Ensure uploads directory exists
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log('Created uploads directory:', uploadsDir);
+}
+
+// Setup storage for uploaded files
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadsDir)
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, uniqueSuffix + path.extname(file.originalname))
+    }
+})
+
+// Create the multer instance
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB file size limit
+    fileFilter: function (req, file, cb) {
+        // Accept images and videos only
+        if (!file.originalname.match(/\.(jpg|jpeg|png|gif|mp4|webm|mov)$/)) {
+            return cb(new Error('Only image and video files are allowed!'), false)
+        }
+        cb(null, true)
+    }
+})
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -98,6 +140,101 @@ io.on("connection", (socket) => {
 });
 
 app.use(route)
+app.use('/uploads', express.static(uploadsDir))
+
+// Handle file uploads
+app.post('/api/upload', (req, res) => {
+  upload.single('avatar')(req, res, function(err) {
+    if (err) {
+      console.error('Multer error:', err);
+      // Handle Multer errors properly
+      if (err.name === 'MulterError') {
+        return res.status(400).json({ 
+          message: `File upload error: ${err.message}`, 
+          success: false 
+        });
+      } else {
+        return res.status(500).json({ 
+          message: `Unexpected error: ${err.message}`, 
+          success: false 
+        });
+      }
+    }
+
+    // If no file was uploaded
+    if (!req.file) {
+      return res.status(400).json({ 
+        message: 'No file uploaded', 
+        success: false 
+      });
+    }
+    
+    // Return the file path that can be stored in the database
+    const filePath = `/uploads/${req.file.filename}`;
+    return res.status(200).json({ 
+      message: 'File uploaded successfully', 
+      success: true,
+      filePath: filePath
+    });
+  });
+})
+
+// Endpoint to update user avatar specifically
+app.patch('/api/user/:id/avatar', (req, res) => {
+  upload.single('avatar')(req, res, async function(err) {
+    if (err) {
+      console.error('Multer error:', err);
+      // Handle Multer errors properly
+      if (err.name === 'MulterError') {
+        return res.status(400).json({ 
+          message: `File upload error: ${err.message}`, 
+          success: false 
+        });
+      } else {
+        return res.status(500).json({ 
+          message: `Unexpected error: ${err.message}`, 
+          success: false 
+        });
+      }
+    }
+
+    // If no file was uploaded
+    if (!req.file) {
+      return res.status(400).json({ 
+        message: 'No file uploaded', 
+        success: false 
+      });
+    }
+
+    try {
+      const userId = req.params.id
+      const filePath = `/uploads/${req.file.filename}`
+      console.log('Updating avatar for user:', userId, 'with file:', filePath)
+      
+      // Find the user and update their avatar using the User model directly
+      const updateResult = await usermodel.findByIdAndUpdate(
+          userId,
+          { $set: { avatar: filePath } },
+          { new: true }
+      )
+      
+      if (!updateResult) {
+          console.error('User not found:', userId)
+          return res.status(404).json({ message: 'User not found', success: false })
+      }
+      
+      console.log('Avatar updated successfully for user:', userId)
+      return res.status(200).json({
+          message: 'Avatar updated successfully',
+          success: true,
+          avatar: filePath
+      })
+    } catch (error) {
+      console.error('Avatar update error:', error)
+      return res.status(500).json({ message: 'Avatar update failed', success: false })
+    }
+  });
+})
 
 // Use server.listen instead of app.listen for Socket.io
 server.listen(process.env.PORT, (error) => {

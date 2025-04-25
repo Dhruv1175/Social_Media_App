@@ -2,16 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/Sidebar';
-import { Search, User, ArrowLeft, UsersRound } from 'lucide-react';
+import { Search, User } from 'lucide-react';
 import '../styles/SearchPage.css';
 
 const SearchPage = () => {
   const [user, setUser] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [recentSearches, setRecentSearches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('recent');
   const navigate = useNavigate();
 
   // Fetch user data
@@ -44,40 +42,21 @@ const SearchPage = () => {
     };
 
     fetchUserData();
-    loadRecentSearches();
   }, [navigate]);
 
-  // Load recent searches from localStorage
-  const loadRecentSearches = () => {
-    try {
-      const storedSearches = localStorage.getItem('recentSearches');
-      if (storedSearches) {
-        setRecentSearches(JSON.parse(storedSearches));
-      }
-    } catch (error) {
-      console.error('Error loading recent searches:', error);
-    }
-  };
-
-  // Handle search input change
+  // Handle search input change and perform search
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
-    if (e.target.value.trim() === '') {
-      setActiveTab('recent');
+    if (e.target.value.trim().length >= 1) {
+      performSearch(e.target.value);
+    } else {
+      setSearchResults([]);
     }
   };
 
-  // Perform search when query changes
-  useEffect(() => {
-    if (searchQuery.trim().length >= 1) {
-      setActiveTab('results');
-      performSearch();
-    }
-  }, [searchQuery]);
-
   // Search function
-  const performSearch = async () => {
-    if (searchQuery.trim() === '') return;
+  const performSearch = async (query) => {
+    if (query.trim() === '') return;
     
     setLoading(true);
     try {
@@ -90,7 +69,7 @@ const SearchPage = () => {
       }
       
       const response = await axios.get(
-        `http://localhost:30801/user/search?q=${encodeURIComponent(searchQuery)}`, 
+        `http://localhost:30801/user/search?q=${encodeURIComponent(query)}`, 
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -111,32 +90,8 @@ const SearchPage = () => {
     }
   };
 
-  // Save user to recent searches
-  const saveToRecentSearches = (user) => {
-    try {
-      // Get existing recent searches
-      const existingSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
-      
-      // Remove the user if they already exist in the list
-      const filteredSearches = existingSearches.filter(search => search._id !== user._id);
-      
-      // Add the user to the beginning of the list
-      const newSearches = [user, ...filteredSearches].slice(0, 8);
-      
-      // Save to localStorage
-      localStorage.setItem('recentSearches', JSON.stringify(newSearches));
-      
-      // Update state
-      setRecentSearches(newSearches);
-    } catch (error) {
-      console.error('Error saving recent search:', error);
-    }
-  };
-
   // Handle clicking on a search result
   const handleResultClick = (user) => {
-    saveToRecentSearches(user);
-    
     // Navigate to the user's profile
     const currentUserId = localStorage.getItem('userId');
     
@@ -149,24 +104,17 @@ const SearchPage = () => {
     }
   };
 
-  // Remove a user from recent searches
-  const handleRemoveRecent = (e, userId) => {
-    e.stopPropagation();
+  // Format follower/following counts
+  const formatCount = (count) => {
+    if (!count) return 0;
     
-    try {
-      const existingSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
-      const updatedSearches = existingSearches.filter(search => search._id !== userId);
-      localStorage.setItem('recentSearches', JSON.stringify(updatedSearches));
-      setRecentSearches(updatedSearches);
-    } catch (error) {
-      console.error('Error removing recent search:', error);
+    if (count >= 1000000) {
+      return (count / 1000000).toFixed(1) + 'M';
     }
-  };
-
-  // Clear all recent searches
-  const clearAllRecentSearches = () => {
-    localStorage.removeItem('recentSearches');
-    setRecentSearches([]);
+    if (count >= 1000) {
+      return (count / 1000).toFixed(1) + 'K';
+    }
+    return count;
   };
 
   if (loading && !user) {
@@ -181,135 +129,63 @@ const SearchPage = () => {
     <div className="search-page">
       <Sidebar user={user} />
       
-      <div className="search-page-container">
-        <div className="search-sidebar">
-          <div className="search-header">
-            <h2>Search</h2>
-          </div>
-          
-          <div className="search-input-container">
-            <div className="search-input-wrapper">
-              <Search size={16} className="search-icon" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={handleSearchChange}
-                placeholder="Search"
-                className="search-input"
-              />
-            </div>
-          </div>
-          
-          <div className="search-tabs">
-            <button 
-              className={`search-tab ${activeTab === 'recent' ? 'active' : ''}`}
-              onClick={() => setActiveTab('recent')}
-            >
-              Recent
-            </button>
-            {searchQuery.trim() !== '' && (
-              <button 
-                className={`search-tab ${activeTab === 'results' ? 'active' : ''}`}
-                onClick={() => setActiveTab('results')}
-              >
-                Results
-              </button>
-            )}
-          </div>
-          
-          {activeTab === 'recent' && (
-            <div className="recent-searches">
-              <div className="recent-searches-header">
-                <h3>Recent</h3>
-                {recentSearches.length > 0 && (
-                  <button className="clear-all-button" onClick={clearAllRecentSearches}>
-                    Clear all
-                  </button>
-                )}
-              </div>
-              
-              {recentSearches.length > 0 ? (
-                <div className="search-results-list">
-                  {recentSearches.map((user) => (
-                    <div 
-                      key={user._id} 
-                      className="search-result-item"
-                      onClick={() => handleResultClick(user)}
-                    >
-                      <div className="search-result-avatar">
-                        {user.avatar ? (
-                          <img src={user.avatar} alt={user.name} />
-                        ) : (
-                          <User size={24} />
-                        )}
-                      </div>
-                      <div className="search-result-details">
-                        <h3>{user.name}</h3>
-                        <p>@{user.username || user.name.toLowerCase().replace(/\s+/g, '_')}</p>
-                      </div>
-                      <button 
-                        className="remove-button"
-                        onClick={(e) => handleRemoveRecent(e, user._id)}
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="no-results">
-                  <UsersRound size={48} />
-                  <p>No recent searches</p>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {activeTab === 'results' && (
-            <div className="search-results">
-              {loading ? (
-                <div className="loading-spinner-container">
-                  <div className="loading-spinner"></div>
-                </div>
-              ) : searchResults.length > 0 ? (
-                <div className="search-results-list">
-                  {searchResults.map((user) => (
-                    <div 
-                      key={user._id} 
-                      className="search-result-item"
-                      onClick={() => handleResultClick(user)}
-                    >
-                      <div className="search-result-avatar">
-                        {user.avatar ? (
-                          <img src={user.avatar} alt={user.name} />
-                        ) : (
-                          <User size={24} />
-                        )}
-                      </div>
-                      <div className="search-result-details">
-                        <h3>{user.name}</h3>
-                        <p>@{user.username || user.name.toLowerCase().replace(/\s+/g, '_')}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="no-results">
-                  <Search size={48} />
-                  <p>No results found for "{searchQuery}"</p>
-                  <span>Try searching for a name or username</span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        
+      <div className="search-container">
         <div className="search-content">
-          <div className="search-placeholder">
-            <Search size={64} strokeWidth={1} />
-            <h2>Search for people</h2>
-            <p>Find people to follow and connect with</p>
+          <div className="search-header">
+            <h1>Search</h1>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Search for users..."
+              className="search-input"
+            />
           </div>
+          
+          {searchResults.length > 0 ? (
+            <div className="search-results">
+              {searchResults.map((user) => (
+                <div 
+                  key={user._id} 
+                  className="user-card"
+                  onClick={() => handleResultClick(user)}
+                >
+                  <div className="user-avatar">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt={user.name} />
+                    ) : (
+                      <User size={36} />
+                    )}
+                  </div>
+                  <h3 className="user-name">{user.name}</h3>
+                  <p className="user-username">@{user.username || user.name.toLowerCase().replace(/\s+/g, '_')}</p>
+                  
+                  <div className="user-stats">
+                    <div className="stat">
+                      <div className="stat-value">{formatCount(user.followers?.length || 0)}</div>
+                      <div className="stat-label">Followers</div>
+                    </div>
+                    <div className="stat">
+                      <div className="stat-value">{formatCount(user.following?.length || 0)}</div>
+                      <div className="stat-label">Following</div>
+                    </div>
+                  </div>
+                  
+                  <button className="follow-button">
+                    View Profile
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="no-results">
+              {searchQuery ? (
+                <p>No users found for "{searchQuery}"</p>
+              ) : (
+                <p>Search for users</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

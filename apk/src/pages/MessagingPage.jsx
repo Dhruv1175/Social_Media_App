@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import io from 'socket.io-client';
 import Sidebar from '../components/Sidebar';
-import { Send, User, ArrowLeft } from 'lucide-react';
+import { Send, User, ArrowLeft, ExternalLink } from 'lucide-react';
 import '../styles/MessagingPage.css';
 
 const MessagingPage = () => {
@@ -453,6 +453,13 @@ const MessagingPage = () => {
     });
   };
 
+  // Function to navigate to user profile
+  const navigateToProfile = () => {
+    if (selectedContact && selectedContact._id) {
+      navigate(`/profile/${selectedContact._id}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -529,17 +536,19 @@ const MessagingPage = () => {
         {selectedContact ? (
           <div className="chat-container">
             <div className="chat-header">
-              <button className="back-button">
-                <ArrowLeft size={24} />
-              </button>
-              <div className="contact-avatar">
-                {selectedContact.avatar ? (
-                  <img src={selectedContact.avatar} alt={selectedContact.name} />
-                ) : (
-                  <User size={16} />
-                )}
+              <div 
+                className="contact-info"
+                onClick={navigateToProfile}
+              >
+                <div className="contact-avatar">
+                  {selectedContact.avatar ? (
+                    <img src={selectedContact.avatar} alt={selectedContact.name} />
+                  ) : (
+                    <User size={16} />
+                  )}
+                </div>
+                <h3>{selectedContact.name}</h3>
               </div>
-              <h3>{selectedContact.name}</h3>
             </div>
             <div className="messages-container">
               {messages.length > 0 ? (

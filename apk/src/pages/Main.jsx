@@ -8,11 +8,11 @@ import MessagingPage from './MessagingPage';
 import SearchPage from './SearchPage';
 import UserProfilePage from './UserProfilePage';
 import FollowsPage from './FollowsPage';
-
+import Settings from './Settings';
 
 export default function Main() {
   return (
-    <div>
+    <div className="app">
         <BrowserRouter>
         <Routes>
             <Route path={"/register"} element={<Register/>} />
@@ -23,6 +23,7 @@ export default function Main() {
             <Route path={"/messages"} element={<MessagingPage/>} />
             <Route path={"/search"} element={<SearchPage/>} />
             <Route path={"/follows"} element={<FollowsPage/>} />
+            <Route path={"/settings"} element={<Settings/>} />
         </Routes>
         </BrowserRouter>
     </div>

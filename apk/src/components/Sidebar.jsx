@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/Sidebar.css';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Instagram, Home, Compass, MessageCircle, Heart, PlusSquare, Menu, LogOut, User, Search } from 'lucide-react';
+import { Instagram, Home, Compass, MessageCircle, Heart, PlusSquare, Menu, LogOut, User, Search, Settings } from 'lucide-react';
 import axios from 'axios';
 import CreatePost from './CreatePost';
+import { useTheme } from '../context/ThemeContext';
 
 const Sidebar = ({ user: propUser }) => {
   const [user, setUser] = useState(propUser || null);
@@ -11,6 +12,7 @@ const Sidebar = ({ user: propUser }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
+  const { theme } = useTheme();
 
   useEffect(() => {
     // If user is provided as a prop, use that
@@ -133,6 +135,11 @@ const Sidebar = ({ user: propUser }) => {
               <User className="nav-icon" size={24} />
             )}
             <span className="nav-text">{user?.name || 'Profile'}</span>
+          </Link>
+          
+          <Link to="/settings" className={`nav-item ${isActive('/settings') ? 'active' : ''}`}>
+            <Settings className="nav-icon" />
+            <span className="nav-text">Settings</span>
           </Link>
         </nav>
         
