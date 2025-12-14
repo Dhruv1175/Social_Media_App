@@ -1,0 +1,115 @@
+/* Apply the gradient only to the register page */
+.register-container {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #f58529, #dd2a7b, #8134af, #515bd4);
+    background-size: 300% 300%;
+    animation: gradient-shift 6s ease infinite;
+}
+
+@keyframes gradient-shift {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Register Box Styling */
+.register-box {
+    background-color: white;
+    border-radius: 10px;
+    padding: 30px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.2);
+    text-align: center;
+}
+
+/* Heading Styling */
+.register-box h1 {
+    color: #dd2a7b;
+    font-size: 2rem;
+    margin-bottom: 20px;
+}
+
+/* Form and Input Fields */
+form {
+    display: flex;
+    flex-direction: column; /* Stack inputs vertically */
+    width: 100%;
+    gap: 16px; /* Add space between form elements */
+}
+
+input, button {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dbdbdb;
+    border-radius: 4px;
+    font-size: 14px;
+    outline: none;
+}
+
+input:focus {
+    border-color: #3897f0;
+}
+
+/* Button Styling */
+button {
+    background-color: #3897f0;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #2684f0;
+}
+
+/* Login Link */
+.login-link {
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+.login-link a {
+    color: #3897f0;
+    text-decoration: none;
+}
+
+.login-link a:hover {
+    text-decoration: underline;
+}
+
+/* Password Input Container */
+.password-input-container {
+    position: relative;
+    width: 100%;
+}
+
+/* Adjust password input */
+.password-input-container input {
+    width: 100%;
+    padding-right: 40px; /* Space for the icon */
+    box-sizing: border-box;
+}
+
+/* Icon Styling */
+.password-toggle-icon {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #888;
+}
+
+.password-toggle-icon:hover {
+    color: #333;
+}

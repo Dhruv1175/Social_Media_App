@@ -1,0 +1,353 @@
+/* Theme Variables */
+:root {
+  /* Light theme variables (default) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f0f0f0;
+  --text-primary: #262626;
+  --text-secondary: #8e8e8e;
+  --border-color: #dbdbdb;
+  --accent-color: #0095f6;
+  --accent-color-rgb: 0, 149, 246;
+  --accent-hover: #1877f2;
+  --error-color: #ed4956;
+  --success-color: #2ecc71;
+  --card-bg: #ffffff;
+  --input-bg: #fafafa;
+  --input-border: #dbdbdb;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --hover-overlay: rgba(0, 0, 0, 0.05);
+  --modal-bg: #ffffff;
+  --nav-active: #efefef;
+  --button-secondary-bg: #efefef;
+  --button-secondary-text: #262626;
+  --post-action-color: #262626;
+  --post-overlay: rgba(0, 0, 0, 0.3);
+  --post-overlay-text: #ffffff;
+  --liked-color: #ed4956;
+  --liked-color-rgb: 237, 73, 86;
+  --comment-bg: #f0f0f0;
+  --divider-color: #dbdbdb;
+  --notification-bg: #fafafa;
+  --story-border: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  --story-viewed: #dbdbdb;
+  --tooltip-bg: rgba(0, 0, 0, 0.8);
+  --tooltip-color: #ffffff;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Dark theme variables - Instagram/Twitter style */
+.theme-dark {
+  /* Background colors - deeper blacks for more contrast */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #000000;
+  --bg-tertiary: #1c1c1c;
+  
+  /* Text colors - brighter whites for better readability */
+  --text-primary: #f1f1f1;
+  --text-secondary: #a0a0a0;
+  
+  /* Border and structural elements */
+  --border-color: #2a2a2a;
+  --card-bg: #121212;
+  --input-bg: #1f1f1f;
+  --input-border: #323232;
+  --shadow-color: rgba(0, 0, 0, 0.7);
+  --hover-overlay: rgba(255, 255, 255, 0.05);
+  --modal-bg: #121212;
+  --nav-active: #252525;
+  
+  /* Button colors with better contrast */
+  --button-secondary-bg: #1f1f1f;
+  --button-secondary-text: #e7e9ea;
+  
+  /* Accent colors */
+  --accent-color: #1d9bf0;
+  --accent-color-rgb: 29, 155, 240;
+  --accent-hover: #1a8cd8;
+  --post-action-color: #e7e9ea;
+  --post-overlay: rgba(0, 0, 0, 0.65);
+  --post-overlay-text: #ffffff;
+  --liked-color: #f91880;
+  --liked-color-rgb: 249, 24, 128;
+  
+  /* Additional elements */
+  --comment-bg: #1a1a1a;
+  --divider-color: #2a2a2a;
+  --notification-bg: #080808;
+  --story-border: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  --story-viewed: #2a2a2a;
+  --tooltip-bg: rgba(91, 112, 131, 0.9);
+  --tooltip-color: #ffffff;
+  
+  /* Success and error states */
+  --error-color: #ff4d4d;
+  --success-color: #00cc88;
+}
+
+/* Root element for transitions */
+html {
+  transition-property: background-color, color, border-color;
+  transition-duration: 200ms;
+  transition-timing-function: ease-in-out;
+}
+
+/* Improved Instagram-style scrollbar for dark mode */
+.theme-dark::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.theme-dark::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+.theme-dark::-webkit-scrollbar-thumb {
+  background: #323232;
+  border-radius: 4px;
+}
+
+.theme-dark::-webkit-scrollbar-thumb:hover {
+  background: #444444;
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  .home-container, .profile-container, .search-container, .messaging-container {
+    background-color: var(--bg-primary) !important;
+  }
+  
+  .post, .card, .stories-container {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    margin-bottom: 8px !important;
+  }
+  
+  /* Improve mobile dark theme */
+  .theme-dark .post, 
+  .theme-dark .card, 
+  .theme-dark .stories-container {
+    box-shadow: none !important;
+  }
+}
+
+/* Base elements styling */
+body, #root, .app {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  transition: background-color 0.2s ease, color 0.2s ease !important;
+}
+
+/* Basic element theme styling */
+input, textarea, select {
+  background-color: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--input-border) !important;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-secondary) !important;
+}
+
+button {
+  transition: background-color 0.2s ease, color 0.2s ease !important;
+}
+
+a {
+  color: var(--accent-color);
+  transition: color 0.2s ease !important;
+}
+
+/* Dark mode specific link styling */
+.theme-dark a:not(.nav-item):not(.primary-button) {
+  color: #4da3ff;
+}
+
+.theme-dark a:not(.nav-item):not(.primary-button):hover {
+  color: #64b5ff;
+}
+
+/* Card styling */
+.card, .post, .profile-card, .modal-content, .edit-profile-modal, .user-card {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: 0 1px 2px var(--shadow-color) !important;
+  color: var(--text-primary) !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+/* Improved dark mode card styling */
+.theme-dark .card,
+.theme-dark .post,
+.theme-dark .profile-card,
+.theme-dark .user-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Modal styling */
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(3px);
+}
+
+.modal-content, .create-modal, .share-modal, .post-modal, .delete-confirmation-content {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Post and card stylings */
+.post-header, .post-caption, .post-comments, .post-likes, .post-user,
+.username, .bio, .user-name, .post-caption-username, .comment-username, .comment-text {
+  color: var(--text-primary) !important;
+}
+
+.post-time, .post-date, .message-time, .user-username, .post-overlay .post-date {
+  color: var(--text-secondary) !important;
+}
+
+.post-action, .action-icon-button, .nav-item {
+  color: var(--post-action-color) !important;
+}
+
+.post-action.liked, .post-action-button.liked, .action-icon-button.liked, .filled-heart {
+  color: var(--liked-color) !important;
+}
+
+/* Improved dark mode specific post styling */
+.theme-dark .post {
+  border-color: #222222 !important;
+}
+
+.theme-dark .post-header {
+  border-bottom-color: #222222 !important;
+}
+
+.theme-dark .add-comment {
+  border-top-color: #222222 !important;
+}
+
+.post-overlay {
+  background-color: var(--post-overlay);
+}
+
+.post-overlay, .post-overlay .post-grid-date {
+  color: var(--post-overlay-text);
+}
+
+.primary-button, .follow-btn, .follow-button, .save-button, .post-submit {
+  background-color: var(--accent-color) !important;
+  color: white !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.primary-button:hover, .follow-btn:hover, .follow-button:hover, .save-button:hover, .post-submit:hover {
+  background-color: var(--accent-hover) !important;
+}
+
+.edit-profile-btn, .message-btn, .secondary-button, .cancel-button {
+  background-color: var(--button-secondary-bg) !important;
+  color: var(--button-secondary-text) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Application-specific components */
+.sidebar {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Improved dark sidebar */
+.theme-dark .sidebar {
+  border-right-color: #222222 !important;
+}
+
+.no-posts {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.stories-container {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.story-avatar.viewed {
+  background: var(--story-viewed) !important;
+}
+
+.home-container, .profile-container, .search-container, .messaging-container {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Theme toggle button */
+.theme-toggle {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 50%;
+}
+
+.theme-toggle:hover {
+  background-color: var(--hover-overlay);
+}
+
+/* Transition effects for theme switching */
+.theme-transitioning * {
+  transition: background-color 0.3s ease, 
+              color 0.3s ease, 
+              border-color 0.3s ease, 
+              box-shadow 0.3s ease !important;
+}
+
+/* Advanced theme transition animation */
+.theme-transitioning {
+  animation: theme-fade 0.3s ease;
+}
+
+@keyframes theme-fade {
+  0% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* More pronounced effect for key elements during transition */
+.theme-transitioning .post,
+.theme-transitioning .card,
+.theme-transitioning .sidebar,
+.theme-transitioning .stories-container {
+  transition: transform 0.3s ease,
+              background-color 0.3s ease,
+              border-color 0.3s ease,
+              box-shadow 0.3s ease !important;
+}
+
+/* Slightly staggered animation for sidebar elements during transition */
+.theme-transitioning .nav-item {
+  transition-delay: calc(var(--nav-index, 0) * 0.03s);
+}
+
+/* Smoother transitions for buttons and interactive elements */
+button,
+.nav-item,
+.post-action,
+.story,
+.primary-button,
+.secondary-button {
+  transition: all 0.2s ease-in-out;
+}
+
+.theme-dark button:hover:not(:disabled),
+.theme-dark .post-action:hover,
+.theme-dark .nav-item:hover {
+  transform: translateY(-1px);
+} 

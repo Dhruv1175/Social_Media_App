@@ -1,0 +1,244 @@
+.search-container {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  z-index: 100;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  background-color: #efefef;
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: all 0.2s ease;
+  margin-bottom: 4px;
+}
+
+.search-bar:focus-within {
+  background-color: #fff;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.search-icon {
+  color: #8e8e8e;
+  margin-right: 12px;
+}
+
+.search-bar input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 6px 0;
+  font-size: 14px;
+  outline: none;
+  color: #262626;
+  font-weight: 300;
+}
+
+.search-bar input::placeholder {
+  color: #8e8e8e;
+  font-weight: 300;
+}
+
+.clear-search-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #c7c7c7;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-search-button:hover {
+  color: #8e8e8e;
+}
+
+/* Search Results Panel - Instagram Style */
+.search-results-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 375px;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1), 0 16px 24px rgba(0, 0, 0, 0.12);
+  max-height: 375px;
+  overflow-y: auto;
+  z-index: 101;
+  padding: 8px 0;
+}
+
+.search-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #efefef;
+}
+
+.search-results-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.clear-all-button {
+  background: none;
+  border: none;
+  color: #0095f6;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.search-results-list {
+  padding: 8px 0;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.search-result-item:hover {
+  background-color: #fafafa;
+}
+
+.search-result-item-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.search-result-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #efefef;
+  margin-right: 12px;
+  color: #8e8e8e;
+}
+
+.search-result-icon.recent {
+  background-color: #efefef;
+}
+
+.search-result-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 12px;
+  border: 1px solid #efefef;
+}
+
+.search-result-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-result-name {
+  font-weight: 600;
+  color: #262626;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.search-result-username {
+  font-size: 14px;
+  color: #8e8e8e;
+}
+
+.remove-recent-button {
+  background: none;
+  border: none;
+  color: #c7c7c7;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden;
+}
+
+.search-result-item:hover .remove-recent-button {
+  visibility: visible;
+}
+
+.search-no-results {
+  padding: 24px 16px;
+  text-align: center;
+  color: #8e8e8e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.search-no-results p {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #262626;
+}
+
+.search-no-results span {
+  font-size: 14px;
+  color: #8e8e8e;
+}
+
+.search-loading {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #efefef;
+  border-top: 2px solid #8e8e8e;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Sidebar-specific styles */
+.sidebar .search-results-panel {
+  position: absolute;
+  width: 300px;
+  left: auto;
+  right: -10px;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .search-container {
+    max-width: 100%;
+  }
+  
+  .search-results-panel {
+    width: 100%;
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    border-radius: 0;
+    max-height: 80vh;
+  }
+} 
