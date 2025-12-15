@@ -8,6 +8,9 @@ import { getFollow, getFollowing, toggleFollow, getAllFollowRelationships, check
 import { markAllNotificationsAsRead } from "../controllers/NotificationController.js";
 import { DirectMessage, getMessage, sendMessage, getMessagedUsers } from "../controllers/MessageController.js";
 import { searchPosts, searchUser } from "../controllers/SearchControllers.js";
+// NEW IMPORTS for Story functionality
+import { createStory, getStoryFeed, markStoryAsViewed, getStoryViews } from "../controllers/StoryController.js"; 
+
 
 const route = express.Router()
 
@@ -40,6 +43,12 @@ route.delete("/user/post/userpost/comment/:commentid/delete",verifyToken,deleteC
 route.post("/user/:userid/post/userpost/:postid/like",verifyToken,toggleLikePost);
 route.post("/user/:userid/post/userpost/:postid/comment/:commentid/like",verifyToken,toggleLikeComment);
 route.get("/user/:userId/likes", verifyToken, getUserLikes);
+
+// --- Story Action Routes ---
+route.post("/user/story/create", verifyToken, createStory); // Create a new story
+route.get("/user/story/feed", verifyToken, getStoryFeed); // Get stories from following users + self
+route.post("/user/story/:storyId/view", verifyToken, markStoryAsViewed); // Mark a story as viewed
+route.get("/user/story/:storyId/views", verifyToken, getStoryViews); // Get viewer insights (creator only)
 
 //follow action routes 
 route.post("/user/:userid/:followid/follow", verifyToken, toggleFollow);
