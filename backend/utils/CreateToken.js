@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 
 export const AccessToken=async(exist)=>{
-    const accesstoken =  jwt.sign({id:exist.email},process.env.ACCESS_TOKEN_KEY,{expiresIn:"1d"})
+    const accesstoken =  jwt.sign({id:exist._id},process.env.ACCESS_TOKEN_KEY,{expiresIn:"1d"})
     return accesstoken
 }
 

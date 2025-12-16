@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { Plus, X, ChevronLeft, ChevronRight, Send, Heart, MessageCircle, Upload } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Send, Heart, Upload, Eye } from 'lucide-react';
 import '../styles/Story.css';
 import { useNavigate } from 'react-router-dom';
 import { uploadMediaToFirebase } from '../utils/MediaUploadService'; 
@@ -24,39 +24,53 @@ const Story = () => {
     const [storyCaption, setStoryCaption] = useState('');
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
-    const [currentMediaType, setCurrentMediaType] = useState(null); 
+    const [currentMediaType, setCurrentMediaType] = useState(null);
+    // Renamed for clarity: this holds the user story *group* from the feed
+    const [currentUserStoryGroup, setCurrentUserStoryGroup] = useState(null); 
+    const [showViews, setShowViews] = useState(false);
+    const [storyViewers, setStoryViewers] = useState([]);
     
     const fileInputRef = useRef(null);
     const progressIntervalRef = useRef(null);
     const storyTimeoutRef = useRef(null);
     
-    // Authorization Header setup
     const getAuthHeaders = () => {
         const token = localStorage.getItem('accessToken');
         return { Authorization: `Bearer ${token}` };
     };
 
-    // --- Core Data Fetching ---
-    const fetchData = async () => {
+    const fetchData = async () => { 
         setLoading(true);
         try {
             const userId = localStorage.getItem('userId');
-            const token = localStorage.getItem('accessToken'); // Check token existence
+            const token = localStorage.getItem('accessToken');
             if (!userId || !token) {
                 console.warn("Authentication data missing. Cannot fetch feed.");
+                navigate('/login');
                 return;
             }
-            
             const headers = getAuthHeaders();
-
-            // 1. Fetch Current User Profile
+            
+            // 1. Fetch user profile
             const userResponse = await axios.get(`${BASE_URL}/profile/${userId}`, { headers });
             setCurrentUser(userResponse.data.exist);
             
-            // 2. Fetch Story Feed from API
+            // 2. Fetch story feed (includes current user and followed users)
             const storyFeedResponse = await axios.get(`${BASE_URL}/story/feed`, { headers });
-            setStories(storyFeedResponse.data);
+            const feedData = storyFeedResponse.data;
             
+            // 3. Separate current user's stories for easier access and sorting logic
+            const currentUserId = userResponse.data.exist._id;
+            const currentUserStories = feedData.find(s => s.userId === currentUserId);
+            setCurrentUserStoryGroup(currentUserStories);
+            
+            // Filter out current user's group from the main list if it exists, as it's handled separately in rendering
+            const otherStories = feedData.filter(s => s.userId !== currentUserId);
+
+            // Create the final sorted list: [Your Story, Other Stories]
+            const sortedStories = currentUserStories ? [currentUserStories, ...otherStories] : otherStories;
+            
+            setStories(sortedStories);
         } catch (error) {
             console.error('Error fetching data:', error.response?.data?.message || error.message);
             setStories([]);
@@ -65,16 +79,15 @@ const Story = () => {
         }
     };
     
-    // --- Lifecycle Effects (omitted for brevity) ---
     useEffect(() => {
         fetchData();
         return () => {
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             if (storyTimeoutRef.current) clearTimeout(storyTimeoutRef.current);
         };
-    }, []);
+    }, [navigate]);
 
-    const markStoryAsViewedAPI = async (storyId) => {
+    const markStoryAsViewedAPI = async (storyId) => { 
         try {
             await axios.post(`${BASE_URL}/story/${storyId}/view`, {}, { headers: getAuthHeaders() });
         } catch (error) {
@@ -82,27 +95,64 @@ const Story = () => {
         }
     };
 
-    useEffect(() => {
+    const fetchStoryViewers = useCallback(async (storyId) => {
+        if (!currentUser || !storyId) return;
+        try {
+            const response = await axios.get(`${BASE_URL}/story/${storyId}/views`, { headers: getAuthHeaders() });
+            setStoryViewers(response.data.viewers || []);
+        } catch (error) {
+            console.error('Error fetching story views:', error.response?.data?.message || error.message);
+            setStoryViewers([]);
+        }
+    }, [currentUser]);
+
+
+    useEffect(() => { 
         if (viewingStory) {
             const currentStory = viewingStory.stories[activeStoryIndex];
             
-            if (currentStory && !currentStory.viewed) {
-                setStories(prevStories => prevStories.map(userStory => {
-                    if (userStory.userId === viewingStory.userId) {
-                        return {
-                            ...userStory,
-                            stories: userStory.stories.map((story, index) => 
-                                index === activeStoryIndex ? { ...story, viewed: true } : story
-                            )
-                        };
+            if (currentStory) {
+                // If it's a new story for the user, mark it as viewed
+                if (!currentStory.viewed) {
+                    setStories(prevStories => prevStories.map(userStory => {
+                        if (userStory.userId === viewingStory.userId) {
+                            return {
+                                ...userStory,
+                                stories: userStory.stories.map((story, index) => 
+                                    index === activeStoryIndex ? { ...story, viewed: true } : story
+                                )
+                            };
+                        }
+                        return userStory;
+                    }));
+                    
+                    if (viewingStory.userId === currentUser?._id) {
+                        setCurrentUserStoryGroup(prev => {
+                            if (!prev) return prev;
+                            return {
+                                ...prev,
+                                stories: prev.stories.map((story, index) => 
+                                    index === activeStoryIndex ? { ...story, viewed: true } : story
+                                )
+                            };
+                        });
                     }
-                    return userStory;
-                }));
-                markStoryAsViewedAPI(currentStory.id);
+                    
+                    markStoryAsViewedAPI(currentStory.id);
+                }
+                
+                // Fetch viewers only for the current user's own stories
+                if (viewingStory.userId === currentUser?._id) {
+                    fetchStoryViewers(currentStory.id);
+                } else {
+                    setStoryViewers([]);
+                }
             }
+
 
             setStoryProgress(0);
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            if (storyTimeoutRef.current) clearTimeout(storyTimeoutRef.current);
             
             progressIntervalRef.current = setInterval(() => {
                 setStoryProgress(prev => {
@@ -113,9 +163,9 @@ const Story = () => {
                         }, 200); 
                         return 100;
                     }
-                    return prev + 1;
+                    return prev + (100 / (50 * 5)); // 5 seconds per story
                 });
-            }, 50); 
+            }, 100); 
         } else {
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             if (storyTimeoutRef.current) clearTimeout(storyTimeoutRef.current);
@@ -125,26 +175,29 @@ const Story = () => {
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             if (storyTimeoutRef.current) clearTimeout(storyTimeoutRef.current);
         };
-    }, [viewingStory, activeStoryIndex]);
+    }, [viewingStory, activeStoryIndex, currentUser, fetchStoryViewers]);
 
-    const handleViewStory = (userIndex) => {
+    const handleViewStory = (userIndex, storyStartIndex = 0) => { 
         setViewingStory(stories[userIndex]);
-        setActiveStoryIndex(0);
+        setActiveStoryIndex(storyStartIndex);
         setStoryProgress(0);
+        setShowViews(false); // Hide views panel when switching stories
     };
     
-    const handleCloseStory = () => {
+    const handleCloseStory = () => { 
         setViewingStory(null);
         setActiveStoryIndex(0);
         setStoryProgress(0);
+        setShowViews(false);
+        setStoryViewers([]);
         
         if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
         if (storyTimeoutRef.current) clearTimeout(storyTimeoutRef.current);
         
-        fetchData(); 
+        fetchData(); // Refresh the feed data to update viewed/unviewed status
     };
     
-    const handleNextStory = () => {
+    const handleNextStory = () => { 
         if (!viewingStory) return;
         
         if (activeStoryIndex < viewingStory.stories.length - 1) {
@@ -155,15 +208,14 @@ const Story = () => {
             const nextUserIndex = currentUserIndex + 1;
             
             if (nextUserIndex < stories.length) {
-                setViewingStory(stories[nextUserIndex]);
-                setActiveStoryIndex(0);
+                handleViewStory(nextUserIndex);
             } else {
                 handleCloseStory(); 
             }
         }
     };
     
-    const handlePrevStory = () => {
+    const handlePrevStory = () => { 
         if (!viewingStory) return;
         
         if (activeStoryIndex > 0) {
@@ -174,15 +226,14 @@ const Story = () => {
             const prevUserIndex = currentUserIndex - 1;
             
             if (prevUserIndex >= 0) {
-                setViewingStory(stories[prevUserIndex]);
-                setActiveStoryIndex(stories[prevUserIndex].stories.length - 1);
+                handleViewStory(prevUserIndex, stories[prevUserIndex].stories.length - 1);
             } else {
                 setActiveStoryIndex(0); 
             }
         }
     };
 
-    const handleOpenCreateStory = () => {
+    const handleOpenCreateStory = () => { 
         if (!currentUser) {
             alert("Please log in to create a story.");
             return;
@@ -192,17 +243,17 @@ const Story = () => {
         setStoryPreview(null);
         setStoryCaption('');
         setUploadProgress(0);
-        setCurrentMediaType(null); // Reset media type
+        setCurrentMediaType(null); 
     };
     
-    const handleCloseCreateStory = () => {
+    const handleCloseCreateStory = () => { 
         setCreatingStory(false);
         setStoryFile(null);
         setStoryPreview(null);
         setStoryCaption('');
         setUploadProgress(0);
         setIsUploading(false);
-        setCurrentMediaType(null); // Reset media type
+        setCurrentMediaType(null); 
         if (storyPreview) URL.revokeObjectURL(storyPreview);
     };
     
@@ -235,60 +286,58 @@ const Story = () => {
         setStoryPreview(objectUrl);
     };
     
-    // Handle Story Creation (Finalized error check)
     const handleCreateStory = async () => {
         const userId = localStorage.getItem('userId');
         
-        // 1. Pre-flight checks (Including User Auth check)
-        if (!storyFile || !currentUser || !currentMediaType || !userId) {
-            alert("Authentication Error: Please log in again, or ensure a media file is selected.");
+        if (!storyFile || !currentUser || !userId) {
+            alert("Authentication Error or missing media file. Please log in or reselect the file.");
             setIsUploading(false);
             return;
         }
         
         setIsUploading(true);
         setUploadProgress(0);
-        let uploadedMediaUrl = null;
         
         try {
-            // 2. Upload file to Firebase Storage
-            uploadedMediaUrl = await uploadMediaToFirebase(
+            const uploadedMediaUrl = await uploadMediaToFirebase(
                 storyFile, 
                 'stories', 
                 setUploadProgress
             ); 
             
-            // CRITICAL CHECK: Ensure Firebase returned a valid URL.
             if (!uploadedMediaUrl) {
                 throw new Error("Firebase upload failed or returned an empty URL.");
             }
 
-            // 3. Post story metadata to the backend
             const storyData = {
                 mediaUrl: uploadedMediaUrl, 
                 mediaType: currentMediaType, 
                 caption: storyCaption,
             };
-
+            
             const response = await axios.post(
                 `${BASE_URL}/story/create`, 
                 storyData, 
                 { headers: getAuthHeaders() }
             );
 
-            // 4. Success handling
             if (response.status !== 201) {
-                 throw new Error(`Server status ${response.status}: ${response.data?.message || 'Unknown error from server.'}`);
+                throw new Error(`Server status ${response.status}: ${response.data?.message || 'Unknown error from server.'}`);
             }
 
             setUploadProgress(100);
-            await fetchData(); 
+            
+            // Re-fetch data to update the feed and include the new story
+            await fetchData();
             
             setTimeout(() => {
                 handleCloseCreateStory();
-                if (stories.length > 0) {
-                    handleViewStory(0);
-                }
+                
+                // Immediately view the newly created story
+                const userIndex = stories.findIndex(s => s.userId === userId);
+                if (userIndex !== -1) {
+                    handleViewStory(userIndex, stories[userIndex].stories.length); // Try to view the last story (the new one)
+                } 
             }, 500);
             
         } catch (error) {
@@ -301,7 +350,6 @@ const Story = () => {
         }
     };
     
-    // --- Utility Functions (omitted for brevity) ---
     const formatTimeAgo = (timestamp) => {
         const now = new Date();
         const storyTime = new Date(timestamp);
@@ -314,28 +362,39 @@ const Story = () => {
     };
 
     const hasUnviewedStories = (userStories) => {
-        return userStories.stories && userStories.stories.some(story => !story.viewed);
+        return userStories && userStories.stories && userStories.stories.some(story => !story.viewed);
     };
     
-    // --- Rendering Logic (omitted for brevity, assumed unchanged) ---
     const renderStoryItems = () => {
         if (loading) {
             return Array(4).fill().map((_, index) => (
-                <div className="stories-loading" key={`loading-${index}`}>
-                    <div className="story-avatar-skeleton"></div>
+                <div className="story-item stories-loading" key={`loading-${index}`}>
+                    <div className="story-avatar-border create"> 
+                        <div className="story-avatar-container skeleton"></div>
+                    </div>
                     <div className="story-username-skeleton"></div>
                 </div>
             ));
         }
         
-        const currentUserStories = stories.find(s => s.userId === currentUser?._id);
-
         return (
             <>
-                {/* Your Story Button (Always first) */}
+                {/* Your Story Button - Always first if user is logged in */}
                 {currentUser && (
-                    <div className="story-item create-story" onClick={handleOpenCreateStory}>
-                        <div className="story-avatar-border create">
+                    <div 
+                        className="story-item create-story" 
+                        onClick={() => {
+                            const userIndex = stories.findIndex(s => s.userId === currentUser._id);
+                            const hasStories = currentUserStoryGroup && currentUserStoryGroup.stories.length > 0;
+                            
+                            if (hasStories && userIndex !== -1) {
+                                handleViewStory(userIndex); // View existing stories
+                            } else {
+                                handleOpenCreateStory(); // Create new story
+                            }
+                        }}
+                    >
+                        <div className={`story-avatar-border ${currentUserStoryGroup && !hasUnviewedStories(currentUserStoryGroup) ? 'viewed' : ''} create`}>
                             <div className="story-avatar-container">
                                 <img 
                                     src={currentUser.profileImageUrl || currentUser.avatar || DEFAULT_AVATAR}
@@ -343,6 +402,7 @@ const Story = () => {
                                     className="story-avatar"
                                     onError={(e) => { e.target.src = DEFAULT_AVATAR }}
                                 />
+                                {/* Show plus icon only if the user doesn't have stories OR if the border isn't already viewed */}
                                 <div className="story-plus-icon">
                                     <Plus size={14} color="white" />
                                 </div>
@@ -352,33 +412,65 @@ const Story = () => {
                     </div>
                 )}
                 
-                {/* Render other users' stories (filtered by backend sorting) */}
+                {/* Render other users' stories */}
                 {stories
-                    .filter(userStory => userStory.userId !== (currentUser?._id || '')) 
-                    .map((userStory, index) => (
-                        <div 
-                            className="story-item" 
-                            key={userStory.userId}
-                            onClick={() => handleViewStory(index)} 
-                        >
-                            <div className={`story-avatar-border ${hasUnviewedStories(userStory) ? '' : 'viewed'}`}>
-                                <div className="story-avatar-container">
-                                    <img 
-                                        src={userStory.profileImageUrl || DEFAULT_AVATAR} 
-                                        alt={userStory.username}
-                                        className="story-avatar"
-                                        onError={(e) => { e.target.src = DEFAULT_AVATAR }}
-                                    />
+                    .filter(userStory => userStory.userId !== currentUser?._id)
+                    .map((userStory, index) => {
+                        // Find the original index in the full list for navigation (important!)
+                        const originalIndex = stories.findIndex(s => s.userId === userStory.userId);
+                        
+                        return (
+                            <div 
+                                className="story-item" 
+                                key={userStory.userId}
+                                onClick={() => handleViewStory(originalIndex)}
+                            >
+                                <div className={`story-avatar-border ${hasUnviewedStories(userStory) ? '' : 'viewed'}`}>
+                                    <div className="story-avatar-container">
+                                        <img 
+                                            src={userStory.profileImageUrl || DEFAULT_AVATAR} 
+                                            alt={userStory.username}
+                                            className="story-avatar"
+                                            onError={(e) => { e.target.src = DEFAULT_AVATAR }}
+                                        />
+                                    </div>
                                 </div>
+                                <span className="story-username">{userStory.username}</span>
                             </div>
-                            <span className="story-username">{userStory.username}</span>
-                        </div>
-                    ))}
+                        );
+                    })}
             </>
         );
     };
 
     const currentStory = viewingStory?.stories[activeStoryIndex];
+    const isOwnerViewing = viewingStory?.userId === currentUser?._id;
+
+    const ViewersPanel = ({ viewers, onClose }) => (
+        <div className={`story-viewers-panel ${showViews ? 'visible' : ''}`}>
+            <div className="viewers-header">
+                <h3>Viewers ({viewers.length})</h3>
+                <button onClick={onClose}><X size={20} color="#262626" /></button>
+            </div>
+            <div className="viewers-list">
+                {viewers.length > 0 ? (
+                    viewers.map(viewer => (
+                        <div className="viewer-item" key={viewer.id}>
+                            <img 
+                                src={viewer.profileImageUrl || DEFAULT_AVATAR} 
+                                alt={viewer.username} 
+                                className="viewer-avatar"
+                                onError={(e) => { e.target.src = DEFAULT_AVATAR }}
+                            />
+                            <span className="viewer-username">{viewer.username}</span>
+                        </div>
+                    ))
+                ) : (
+                    <p className="no-viewers">No viewers yet.</p>
+                )}
+            </div>
+        </div>
+    );
 
     return (
         <>
@@ -391,6 +483,15 @@ const Story = () => {
             {viewingStory && currentStory && (
                 <div className="story-modal">
                     <div className="story-view-container">
+                        
+                        {/* Story Navigation Click Areas */}
+                        <button className="story-nav prev" onClick={handlePrevStory}>
+                            <ChevronLeft size={24} color="white" />
+                        </button>
+                        <button className="story-nav next" onClick={handleNextStory}>
+                            <ChevronRight size={24} color="white" />
+                        </button>
+
                         {/* Progress Bars */}
                         <div className="story-progress-container">
                             {viewingStory.stories.map((story, index) => (
@@ -421,9 +522,24 @@ const Story = () => {
                                     {formatTimeAgo(currentStory.timestamp)}
                                 </span>
                             </div>
-                            <button className="story-close-btn" onClick={handleCloseStory}>
-                                <X size={24} color="white" />
-                            </button>
+                            <div className="story-header-actions">
+                                {/* Add New Story button for current user */}
+                                {isOwnerViewing && (
+                                    <button 
+                                        className="story-add-btn" 
+                                        onClick={() => {
+                                            handleCloseStory();
+                                            handleOpenCreateStory();
+                                        }}
+                                        title="Add to your story"
+                                    >
+                                        <Plus size={20} color="white" />
+                                    </button>
+                                )}
+                                <button className="story-close-btn" onClick={handleCloseStory}>
+                                    <X size={24} color="white" />
+                                </button>
+                            </div>
                         </div>
                         
                         {/* Story Content */}
@@ -436,6 +552,7 @@ const Story = () => {
                                     muted 
                                     loop
                                     playsInline
+                                    key={currentStory.id} // Important for video to reset on index change
                                 />
                             ) : (
                                 <img 
@@ -453,32 +570,43 @@ const Story = () => {
                             )}
                         </div>
                         
-                        {/* Story Navigation */}
-                        <button className="story-nav prev" onClick={handlePrevStory}>
-                            <ChevronLeft size={24} color="white" />
-                        </button>
-                        <button className="story-nav next" onClick={handleNextStory}>
-                            <ChevronRight size={24} color="white" />
-                        </button>
-                        
-                        {/* Story Actions */}
+                        {/* Story Actions / Footer */}
                         <div className="story-actions">
-                            <div className="story-reply-box">
-                                <input type="text" placeholder={`Reply to ${viewingStory.username}...`} />
-                                <button className="story-send-btn">
-                                    <Send size={20} color="white" />
+                            {isOwnerViewing ? (
+                                // Story Owner View
+                                <button 
+                                    className="story-views-toggle" 
+                                    onClick={() => setShowViews(prev => !prev)}
+                                >
+                                    <Eye size={20} color="white" />
+                                    <span>{storyViewers.length} Views</span>
                                 </button>
-                            </div>
-                            
-                            <div className="story-reactions">
-                                <button className="story-reaction-btn">
-                                    <Heart size={24} color="white" />
-                                </button>
-                                <button className="story-reaction-btn">
-                                    <MessageCircle size={24} color="white" />
-                                </button>
-                            </div>
+                            ) : (
+                                // Viewer/Friend View
+                                <>
+                                    <div className="story-reply-box">
+                                        <input type="text" placeholder={`Reply to ${viewingStory.username}...`} />
+                                        <button className="story-send-btn">
+                                            <Send size={20} color="white" />
+                                        </button>
+                                    </div>
+                                    <div className="story-reactions">
+                                        <button className="story-reaction-btn">
+                                            <Heart size={24} color="white" />
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
+                        
+                        {/* Viewers Panel (Overlay) */}
+                        {isOwnerViewing && (
+                            <ViewersPanel 
+                                viewers={storyViewers} 
+                                onClose={() => setShowViews(false)}
+                            />
+                        )}
+                        
                     </div>
                 </div>
             )}
@@ -489,58 +617,65 @@ const Story = () => {
                     <div className="story-creation-container">
                         <div className="story-creation-header">
                             <h3>Create Story</h3>
-                            <button onClick={handleCloseCreateStory}>
+                            <button onClick={handleCloseCreateStory} disabled={isUploading}>
                                 <X size={24} color="#262626" />
                             </button>
                         </div>
                         
                         <div className="story-creation-content">
-                            <div className="story-upload-placeholder">
-                                <input 
-                                    type="file" 
-                                    ref={fileInputRef} 
-                                    onChange={handleFileChange} 
-                                    accept="image/*, video/*" 
-                                    style={{ display: 'none' }} 
-                                />
-                                {!storyFile ? (
-                                    <button className="upload-btn" onClick={handleFileSelect}>
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                onChange={handleFileChange} 
+                                accept="image/*, video/*" 
+                                style={{ display: 'none' }} 
+                                disabled={isUploading}
+                            />
+                            
+                            {!storyFile ? (
+                                <div className="story-upload-placeholder"> 
+                                    <button className="upload-btn" onClick={handleFileSelect} disabled={isUploading}>
                                         <Upload size={48} color="#0095f6" />
                                         <span>Upload photo or video</span>
                                     </button>
-                                ) : (
-                                    <>
-                                        <div className="story-preview">
-                                            {currentMediaType === 'video' ? (
-                                                <video 
-                                                    src={storyPreview} 
-                                                    className="story-preview-media" 
-                                                    autoPlay 
-                                                    muted 
-                                                    loop
-                                                    playsInline
-                                                    controls
-                                                />
-                                            ) : (
-                                                <img 
-                                                    src={storyPreview} 
-                                                    className="story-preview-media" 
-                                                    alt="Story preview" 
-                                                />
-                                            )}
-                                        </div>
-                                        
-                                        <div className="story-caption-input">
-                                            <textarea 
-                                                placeholder="Write a caption..." 
-                                                value={storyCaption}
-                                                onChange={(e) => setStoryCaption(e.target.value)}
-                                                maxLength={2200}
+                                    <p className="upload-hint">Supported formats: JPG, PNG, MP4, MOV</p>
+                                </div>
+                            ) : (
+                                <div className="creation-preview-box">
+                                    <div className="story-preview-media-container" onClick={handleFileSelect}>
+                                        {currentMediaType === 'video' ? (
+                                            <video 
+                                                src={storyPreview} 
+                                                className="story-preview-media" 
+                                                autoPlay 
+                                                muted 
+                                                loop
+                                                playsInline
                                             />
+                                        ) : (
+                                            <img 
+                                                src={storyPreview} 
+                                                className="story-preview-media" 
+                                                alt="Story preview" 
+                                            />
+                                        )}
+                                        <div className="reupload-overlay">
+                                            <Upload size={24} color="white" />
+                                            <span>Change Media</span>
                                         </div>
-                                    </>
-                                )}
-                            </div>
+                                    </div>
+                                    
+                                    <div className="story-caption-input">
+                                        <textarea 
+                                            placeholder="Write a caption..." 
+                                            value={storyCaption}
+                                            onChange={(e) => setStoryCaption(e.target.value)}
+                                            maxLength={2200}
+                                            disabled={isUploading}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         
                         <div className="story-creation-actions">
@@ -560,7 +695,7 @@ const Story = () => {
                             </button>
                         </div>
                         
-                        {isUploading && (
+                        {isUploading && uploadProgress > 0 && (
                             <div className="story-upload-progress">
                                 <div 
                                     className="story-upload-progress-bar" 

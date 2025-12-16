@@ -1,18 +1,16 @@
 import Story from '../models/StoryModel.js';
-import User from '../models/UserModel.js'; // Assuming you have a User model
+import User from '../models/UserModel.js'; 
 
-// --- Helper function to aggregate stories by user (like the UI expects) ---
+// --- Helper function to aggregate stories by user (FIXED for views) ---
 const aggregateStoriesByUser = (stories, currentUserId) => {
     const groupedStories = new Map();
 
     stories.forEach(story => {
-        // Ensure story.user is populated and accessible
         if (!story.user || !story.user._id) return;
         
         const userId = story.user._id.toString();
         
         if (!groupedStories.has(userId)) {
-            // Initialize the group with user info
             groupedStories.set(userId, {
                 userId: userId,
                 username: story.user.username,
@@ -21,34 +19,43 @@ const aggregateStoriesByUser = (stories, currentUserId) => {
             });
         }
         
-        // Determine if the current user has viewed this specific story
-        const isViewed = story.views.map(v => v.toString()).includes(currentUserId.toString());
+        // Filter out null/undefined entries before calling .toString()
+        const validViews = story.views.filter(v => v !== null && v !== undefined);
+        const isViewed = validViews.map(v => v.toString()).includes(currentUserId.toString());
 
-        // Push the story details into the group
         groupedStories.get(userId).stories.push({
             id: story._id.toString(),
             mediaUrl: story.mediaUrl,
             mediaType: story.mediaType,
             caption: story.caption,
             timestamp: story.createdAt,
-            viewed: isViewed,
+            viewed: isViewed, // Correctly checks if the current user has viewed the story
         });
     });
-
-    // Final sorting logic for the feed
+    
     const feed = Array.from(groupedStories.values());
     
-    // Sort feed: Current user first, then users with unviewed stories
+    // Sort: current user first, then users with unviewed stories, then others (The correct display order)
     feed.sort((a, b) => {
         const aIsCurrentUser = a.userId === currentUserId.toString();
         const bIsCurrentUser = b.userId === currentUserId.toString();
-        const aHasUnviewed = a.stories.some(s => !s.viewed);
-        const bHasUnviewed = b.stories.some(s => !s.viewed);
-
+        
         if (aIsCurrentUser && !bIsCurrentUser) return -1;
         if (!aIsCurrentUser && bIsCurrentUser) return 1;
+        
+        const aHasUnviewed = a.stories.some(s => !s.viewed);
+        const bHasUnviewed = b.stories.some(s => !s.viewed);
+        
         if (aHasUnviewed && !bHasUnviewed) return -1;
         if (!aHasUnviewed && bHasUnviewed) return 1;
+        
+        // Secondary sort to ensure newest stories from followers are higher
+        if (a.stories.length > 0 && b.stories.length > 0) {
+            const aNewest = Math.max(...a.stories.map(s => new Date(s.timestamp).getTime()));
+            const bNewest = Math.max(...b.stories.map(s => new Date(s.timestamp).getTime()));
+            return bNewest - aNewest;
+        }
+        
         return 0;
     });
 
@@ -63,26 +70,41 @@ const aggregateStoriesByUser = (stories, currentUserId) => {
  * @access Private
  */
 export const createStory = async (req, res) => {
-    // req.user._id is set by verifyToken middleware
-    const userId = req.user._id; 
-    const { mediaUrl, mediaType, caption } = req.body;
+    const authenticatedId = req.user?.id; 
+    let { mediaUrl, mediaType, caption } = req.body; 
 
-    // IMPORTANT CHECK: Ensure mediaUrl and mediaType are present (Fixes 500 Error if they were missing)
-    if (!mediaUrl || !mediaType || !userId) {
-        return res.status(400).json({ message: 'User, Media URL, and Media Type are required.' });
+    if (!mediaUrl || !authenticatedId) {
+        return res.status(400).json({ 
+            message: 'Media URL and authentication are required.' 
+        });
     }
     
+    // Auto-detect media type if not provided
+    if (!mediaType || !['image', 'video'].includes(mediaType)) {
+        const urlLower = mediaUrl.toLowerCase();
+        if (urlLower.endsWith('.mp4') || urlLower.endsWith('.mov') || urlLower.endsWith('.webm') || urlLower.includes('video')) {
+            mediaType = 'video';
+        } else {
+            mediaType = 'image';
+        }
+    }
+
     try {
+        // Check if user exists
+        const userExists = await User.findById(authenticatedId);
+        if (!userExists) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
         const newStory = new Story({
-            user: userId,
+            user: authenticatedId, 
             mediaUrl,
-            mediaType,
+            mediaType: mediaType, 
             caption: caption || '',
         });
 
         await newStory.save();
 
-        // Return a simplified story object
         res.status(201).json({ 
             message: 'Story created successfully.', 
             story: {
@@ -96,6 +118,13 @@ export const createStory = async (req, res) => {
         });
     } catch (error) {
         console.error('SERVER ERROR creating story:', error);
+        
+        if (error.name === 'ValidationError' || error.name === 'CastError') { 
+             return res.status(400).json({ 
+                 message: `Validation failed: ${error.message}`,
+                 details: error.message
+             });
+        }
         res.status(500).json({ message: 'Internal Server Error during story creation.' });
     }
 };
@@ -106,7 +135,7 @@ export const createStory = async (req, res) => {
  * @access Private
  */
 export const getStoryFeed = async (req, res) => {
-    const currentUserId = req.user._id;
+    const currentUserId = req.user._id || req.user.id;
 
     try {
         // Fetch user profile to get following list
@@ -116,12 +145,15 @@ export const getStoryFeed = async (req, res) => {
         // Include the current user's ID to fetch their own stories
         const userIdsToFetch = [currentUserId, ...followingIds];
 
-        // Fetch all non-expired stories from these users
+        // Fetch stories from the last 24 hours only
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        
         const stories = await Story.find({
-            user: { $in: userIdsToFetch }
+            user: { $in: userIdsToFetch },
+            createdAt: { $gte: twentyFourHoursAgo }
         })
-        .sort({ createdAt: -1 }) // Sort newest first
-        .populate('user', 'username profileImageUrl avatar') 
+        .sort({ createdAt: 1 }) // Sort oldest first to maintain chronological order within the group
+        .populate('user', 'username profileImageUrl avatar _id') 
         .lean(); 
 
         // Aggregate and sort the stories using the helper function
@@ -142,9 +174,15 @@ export const getStoryFeed = async (req, res) => {
  */
 export const markStoryAsViewed = async (req, res) => {
     const { storyId } = req.params;
-    const userId = req.user._id;
+    const userId = req.user._id || req.user.id;
 
     try {
+        // Check if story exists
+        const story = await Story.findById(storyId);
+        if (!story) {
+            return res.status(404).json({ message: 'Story not found.' });
+        }
+
         // Use $addToSet to ensure the userId is only added once
         const result = await Story.updateOne(
             { _id: storyId, views: { $ne: userId } },
@@ -164,14 +202,15 @@ export const markStoryAsViewed = async (req, res) => {
 
 /**
  * @desc Get views count for a specific story (for the creator)
- * @route GET /api/story/:storyId/views
+ * @route GET /user/story/:storyId/views
  * @access Private (Owner Only)
  */
 export const getStoryViews = async (req, res) => {
     const { storyId } = req.params;
-    const currentUserId = req.user._id;
+    const currentUserId = req.user._id || req.user.id;
 
     try {
+        // Populate views with necessary user info for the panel
         const story = await Story.findById(storyId).populate('views', 'username profileImageUrl');
 
         if (!story) {
