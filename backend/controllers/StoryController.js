@@ -1,7 +1,9 @@
 import Story from '../models/StoryModel.js';
-import User from '../models/UserModel.js'; 
+import User from '../models/UserModel.js';
+import Follow from '../models/FollowModel.js'; // Add this import
+import mongoose from 'mongoose';
 
-// --- Helper function to aggregate stories by user (FIXED for views) ---
+// --- Helper function to aggregate stories by user ---
 const aggregateStoriesByUser = (stories, currentUserId) => {
     const groupedStories = new Map();
 
@@ -9,33 +11,38 @@ const aggregateStoriesByUser = (stories, currentUserId) => {
         if (!story.user || !story.user._id) return;
         
         const userId = story.user._id.toString();
+        const username = story.user.username || story.user.name || 'User';
+        const profileImageUrl = story.user.profileImageUrl || story.user.avatar || null;
         
         if (!groupedStories.has(userId)) {
             groupedStories.set(userId, {
                 userId: userId,
-                username: story.user.username,
-                profileImageUrl: story.user.profileImageUrl || story.user.avatar, 
+                username: username,
+                profileImageUrl: profileImageUrl,
                 stories: [],
             });
         }
         
-        // Filter out null/undefined entries before calling .toString()
-        const validViews = story.views.filter(v => v !== null && v !== undefined);
-        const isViewed = validViews.map(v => v.toString()).includes(currentUserId.toString());
+        // Check if current user has viewed this story
+        const isViewed = story.views && story.views.some(view => {
+            if (!view) return false;
+            const viewId = view._id ? view._id.toString() : view.toString();
+            return viewId === currentUserId.toString();
+        });
 
         groupedStories.get(userId).stories.push({
             id: story._id.toString(),
             mediaUrl: story.mediaUrl,
             mediaType: story.mediaType,
-            caption: story.caption,
+            caption: story.caption || '',
             timestamp: story.createdAt,
-            viewed: isViewed, // Correctly checks if the current user has viewed the story
+            viewed: isViewed || false,
         });
     });
     
     const feed = Array.from(groupedStories.values());
     
-    // Sort: current user first, then users with unviewed stories, then others (The correct display order)
+    // Sort: current user first, then users with unviewed stories, then others
     feed.sort((a, b) => {
         const aIsCurrentUser = a.userId === currentUserId.toString();
         const bIsCurrentUser = b.userId === currentUserId.toString();
@@ -70,12 +77,12 @@ const aggregateStoriesByUser = (stories, currentUserId) => {
  * @access Private
  */
 export const createStory = async (req, res) => {
-    const authenticatedId = req.user?.id; 
-    let { mediaUrl, mediaType, caption } = req.body; 
+    const authenticatedId = req.user?.id;
+    let { mediaUrl, mediaType, caption } = req.body;
 
     if (!mediaUrl || !authenticatedId) {
-        return res.status(400).json({ 
-            message: 'Media URL and authentication are required.' 
+        return res.status(400).json({
+            message: 'Media URL and authentication are required.'
         });
     }
     
@@ -97,30 +104,31 @@ export const createStory = async (req, res) => {
         }
 
         const newStory = new Story({
-            user: authenticatedId, 
+            user: authenticatedId,
             mediaUrl,
-            mediaType: mediaType, 
+            mediaType: mediaType,
             caption: caption || '',
+            views: [authenticatedId] // Add creator as viewer
         });
 
         await newStory.save();
 
-        res.status(201).json({ 
-            message: 'Story created successfully.', 
+        res.status(201).json({
+            message: 'Story created successfully.',
             story: {
                 id: newStory._id,
                 mediaUrl: newStory.mediaUrl,
                 mediaType: newStory.mediaType,
                 caption: newStory.caption,
                 timestamp: newStory.createdAt,
-                viewed: false, 
+                viewed: true, // Creator automatically views their own story
             }
         });
     } catch (error) {
         console.error('SERVER ERROR creating story:', error);
         
-        if (error.name === 'ValidationError' || error.name === 'CastError') { 
-             return res.status(400).json({ 
+        if (error.name === 'ValidationError' || error.name === 'CastError') {
+             return res.status(400).json({
                  message: `Validation failed: ${error.message}`,
                  details: error.message
              });
@@ -138,12 +146,29 @@ export const getStoryFeed = async (req, res) => {
     const currentUserId = req.user._id || req.user.id;
 
     try {
-        // Fetch user profile to get following list
-        const userProfile = await User.findById(currentUserId).select('following').lean();
-        const followingIds = userProfile?.following || [];
+        // Fetch following list from Follow model (not User model)
+        const followRelations = await Follow.find({ follower: currentUserId }).select('following').lean();
+        const followingIds = followRelations.map(fr => fr.following);
+        
+        console.log('Current user following IDs (from Follow model):', followingIds);
+        console.log('Number of follow relations:', followRelations.length);
+        
+        // Convert to ObjectId
+        const followingObjectIds = followingIds.map(id => {
+            try {
+                return new mongoose.Types.ObjectId(id);
+            } catch (error) {
+                console.warn(`Invalid ObjectId in following list: ${id}`);
+                return null;
+            }
+        }).filter(id => id !== null);
+
+        const currentUserObjectId = new mongoose.Types.ObjectId(currentUserId);
         
         // Include the current user's ID to fetch their own stories
-        const userIdsToFetch = [currentUserId, ...followingIds];
+        const userIdsToFetch = [currentUserObjectId, ...followingObjectIds];
+
+        console.log('Fetching stories for user IDs:', userIdsToFetch.map(id => id.toString()));
 
         // Fetch stories from the last 24 hours only
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -152,18 +177,47 @@ export const getStoryFeed = async (req, res) => {
             user: { $in: userIdsToFetch },
             createdAt: { $gte: twentyFourHoursAgo }
         })
-        .sort({ createdAt: 1 }) // Sort oldest first to maintain chronological order within the group
-        .populate('user', 'username profileImageUrl avatar _id') 
-        .lean(); 
+        .sort({ createdAt: 1 })
+        .populate({
+            path: 'user',
+            select: 'username name profileImageUrl avatar _id'
+        })
+        .populate({
+            path: 'views',
+            select: 'username profileImageUrl _id'
+        })
+        .lean();
+
+        console.log(`Found ${stories.length} stories in the last 24 hours`);
+
+        // Log story distribution for debugging
+        const storyCountByUser = {};
+        stories.forEach(story => {
+            const userId = story.user?._id?.toString();
+            if (userId) {
+                storyCountByUser[userId] = (storyCountByUser[userId] || 0) + 1;
+            }
+        });
+        console.log('Story distribution by user:', storyCountByUser);
+
+        // If no stories found, return empty array
+        if (stories.length === 0) {
+            return res.status(200).json([]);
+        }
 
         // Aggregate and sort the stories using the helper function
         const aggregatedFeed = aggregateStoriesByUser(stories, currentUserId);
+
+        console.log(`Aggregated feed has ${aggregatedFeed.length} users with stories`);
 
         res.status(200).json(aggregatedFeed);
 
     } catch (error) {
         console.error('SERVER ERROR fetching story feed:', error);
-        res.status(500).json({ message: 'Internal Server Error fetching story feed.' });
+        res.status(500).json({ 
+            message: 'Internal Server Error fetching story feed.',
+            error: error.message 
+        });
     }
 };
 

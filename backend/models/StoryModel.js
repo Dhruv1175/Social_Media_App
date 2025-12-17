@@ -1,6 +1,4 @@
-// models/StoryModel.js
 import mongoose from 'mongoose';
-
 const storySchema = new mongoose.Schema({
     // Reference to the User who created the story
     user: {
@@ -11,13 +9,13 @@ const storySchema = new mongoose.Schema({
     // URL for the image or video file
     mediaUrl: {
         type: String,
-        required: true, // MUST remain required since a story must have media
+        required: true,
     },
     // Type of media: 'image' or 'video'
     mediaType: {
         type: String,
         enum: ['image', 'video'],
-        required: false, // <-- CRITICAL FIX
+        required: false,
     },
     caption: {
         type: String,
@@ -32,15 +30,19 @@ const storySchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
     }],
+    // REMOVE the expires field from here
+    // Let the query handle the 24/48 hour logic
     createdAt: {
         type: Date,
         default: Date.now,
-        expires: 60 * 60 * 24, 
+        // REMOVE: expires: 60 * 60 * 24, 
     },
 }, { 
     timestamps: true 
 });
 
-const Story = mongoose.model('Story', storySchema);
+// If you want automatic cleanup after 24 hours, add this instead:
+storySchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 }); // 24 hours
 
+const Story = mongoose.model('Story', storySchema);
 export default Story;

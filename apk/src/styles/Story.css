@@ -2,11 +2,11 @@
 .stories-container {
     display: flex;
     overflow-x: auto;
-    padding: 16px; 
+    padding: 16px;
     gap: 20px;
-    background-color: var(--bg-primary); /* Use theme variable */
-    border: 1px solid var(--border-color); /* Use theme variable */
-    border-radius: 16px; /* Slightly larger radius for modern look */
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
     margin-bottom: 24px;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -22,7 +22,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-width: 78px; /* Slightly adjusted size */
+    min-width: 78px;
     max-width: 78px;
     cursor: pointer;
     transition: transform 0.2s, opacity 0.2s;
@@ -35,33 +35,33 @@
 
 /* Story Avatar Ring (Unviewed) */
 .story-avatar-border {
-    width: 70px; 
+    width: 70px;
     height: 70px;
     border-radius: 50%;
-    background: var(--story-border); /* Use CSS variable */
+    background: var(--story-border);
     display: flex;
     align-items: center;
     justify-content: center;
     margin-bottom: 8px;
-    padding: 3px; 
+    padding: 3px;
     box-sizing: border-box;
     flex-shrink: 0;
 }
 
 /* Story Avatar Ring (Viewed) */
 .story-avatar-border.viewed {
-    background: var(--story-viewed); /* Greyed out */
+    background: var(--story-viewed);
 }
 
 /* Create Story Ring */
 .story-avatar-border.create {
     background: none;
-    border: 2px solid var(--border-color); /* Solid grey ring for user's own story/create */
+    border: 2px solid var(--border-color);
     padding: 0;
 }
 
 .story-avatar-container {
-    width: 62px; 
+    width: 62px;
     height: 62px;
     border-radius: 50%;
     background-color: var(--bg-primary);
@@ -70,13 +70,13 @@
     align-items: center;
     justify-content: center;
     position: relative;
-    border: 2px solid var(--bg-primary); /* Ensures background color padding */
+    border: 2px solid var(--bg-primary);
     box-sizing: border-box;
 }
 
 .story-avatar-border.create .story-avatar-container {
     border: none;
-    width: 66px; 
+    width: 66px;
     height: 66px;
 }
 
@@ -100,8 +100,8 @@
 /* Create Story Button */
 .story-item.create-story .story-plus-icon {
     position: absolute;
-    bottom: 0px; /* Adjusted slightly */
-    right: 0px; /* Adjusted slightly */
+    bottom: 0px;
+    right: 0px;
     width: 20px;
     height: 20px;
     background-color: var(--accent-color);
@@ -132,7 +132,6 @@
     100% { opacity: 0.6; }
 }
 
-
 /* --- Story Viewing Modal --- */
 .story-modal {
     position: fixed;
@@ -151,15 +150,15 @@
 .story-view-container {
     position: relative;
     width: 100%;
-    max-width: 450px; 
+    max-width: 450px;
     height: 100%;
-    max-height: 800px; 
+    max-height: 800px;
     background: black;
     border-radius: 12px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    margin: 0 10px; 
+    margin: 0 10px;
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
 }
 
@@ -186,7 +185,7 @@
 .story-progress-bar {
     height: 100%;
     background-color: white;
-    transition: width 0.05s linear; 
+    transition: width 0.05s linear;
 }
 
 /* Story Header */
@@ -208,7 +207,7 @@
 }
 
 .story-user-avatar {
-    width: 38px; /* Slightly larger */
+    width: 38px;
     height: 38px;
     border-radius: 50%;
     overflow: hidden;
@@ -265,19 +264,19 @@
     align-items: center;
     justify-content: center;
     position: relative;
-    height: 100%; 
+    height: 100%;
     width: 100%;
 }
 
 .story-media {
     width: 100%;
     height: 100%;
-    object-fit: cover; 
+    object-fit: cover;
 }
 
 .story-caption {
     position: absolute;
-    bottom: 60px; 
+    bottom: 60px;
     left: 0;
     right: 0;
     padding: 16px;
@@ -286,7 +285,7 @@
     line-height: 1.4;
     text-align: center;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-    background: linear-gradient(0deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 100%); 
+    background: linear-gradient(0deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 100%);
     z-index: 5;
 }
 
@@ -295,8 +294,8 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 30%; /* Only side 30% acts as a button */
-    height: 100%; /* Full height to cover touch area */
+    width: 30%;
+    height: 100%;
     background: none;
     border: none;
     cursor: pointer;
@@ -304,7 +303,7 @@
     display: flex;
     align-items: center;
     padding: 0 10px;
-    opacity: 0; 
+    opacity: 0;
     transition: opacity 0.2s;
 }
 
@@ -332,13 +331,13 @@
     z-index: 15;
     display: flex;
     align-items: center;
-    background: linear-gradient(0deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 100%); 
+    background: linear-gradient(0deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 100%);
 }
 
 /* Viewer/Friend Reply Box */
 .story-reply-box {
     flex: 1;
-    background-color: rgba(255, 255, 255, 0.15); /* Slightly visible */
+    background-color: rgba(255, 255, 255, 0.15);
     border: 1px solid rgba(255, 255, 255, 0.5);
     border-radius: 24px;
     display: flex;
@@ -426,7 +425,7 @@
 }
 
 .story-viewers-panel.visible {
-    height: 50%; /* Adjust as needed, e.g., 50% of story-view-container */
+    height: 50%;
 }
 
 .viewers-header {
@@ -484,7 +483,8 @@
     padding: 20px;
     font-size: 14px;
 }
-/* --- Story Creation Modal (Minimal Changes for consistency) --- */
+
+/* --- Story Creation Modal --- */
 .story-creation-modal {
     position: fixed;
     top: 0;
@@ -683,7 +683,7 @@
     }
     
     .story-nav {
-        opacity: 0; /* Arrows hidden on small screens, rely on click/tap on the sides */
+        opacity: 0;
         width: 40%;
     }
     
