@@ -1648,3 +1648,179 @@
 .post-grid-item:hover .post-overlay {
   opacity: 1;
 }
+/* Comment Styles for Profile Page Modal */
+
+.comment-item {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 4px 0;
+}
+
+.comment-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.comment-user-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.comment-content {
+  flex: 1;
+  background: #f9f9f9;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.comment-username {
+  font-weight: 600;
+  color: #262626;
+  cursor: pointer;
+}
+
+.comment-username:hover {
+  text-decoration: underline;
+}
+
+.comment-time {
+  font-size: 11px;
+  color: #8e8e8e;
+}
+
+.comment-text {
+  margin: 0;
+  color: #262626;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.comment-action-btn {
+  background: none;
+  border: none;
+  font-size: 11px;
+  color: #8e8e8e;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.comment-action-btn:hover {
+  color: #262626;
+  background: #f0f0f0;
+}
+
+.comment-action-btn.delete:hover {
+  color: #ed4956;
+  background: #fef0f0;
+}
+
+.loading-comments {
+  text-align: center;
+  padding: 20px;
+  color: #8e8e8e;
+  font-size: 13px;
+}
+
+.no-comments-yet {
+  color: #8e8e8e;
+  text-align: center;
+  padding: 20px 0;
+  font-size: 14px;
+}
+
+/* Comment Input */
+.add-comment-container {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-top: 1px solid #efefef;
+}
+
+.comment-input {
+  flex: 1;
+  border: none;
+  background: #f9f9f9;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  outline: none;
+}
+
+.comment-input:focus {
+  background: #f0f0f0;
+}
+
+.post-comment-button {
+  background: #0095f6;
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.post-comment-button:disabled {
+  background: #b2dffc;
+  cursor: not-allowed;
+}
+
+.post-comment-button:not(:disabled):hover {
+  background: #0081d6;
+}
+
+/* Post comments container */
+.post-comments-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  max-height: 300px;
+}
+
+.post-comments-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.post-comments-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
+}
+
+.post-comments-container::-webkit-scrollbar-thumb {
+  background: #c7c7c7;
+  border-radius: 2px;
+}
+
+.post-comments-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

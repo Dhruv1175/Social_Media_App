@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import axios from 'axios';
-import { Settings, Grid, Bookmark, X, Upload, Heart, MessageCircle, Image, Edit, Trash2, MoreHorizontal, Video, Film, Share2, BookmarkCheck } from 'lucide-react';
+import { Settings, Grid, Bookmark, X, Upload, Heart, MessageCircle, Image, Edit, Trash2, MoreHorizontal, Video, Film, Share2, BookmarkCheck, Send, User } from 'lucide-react';
 import '../styles/ProfilePage.css';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -106,6 +106,13 @@ const ProfilePage = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadType, setUploadType] = useState('');
   const fileInputRef = useRef(null);
+  
+  // New comment states
+  const [postComments, setPostComments] = useState({}); // { postId: [comments] }
+  const [newCommentText, setNewCommentText] = useState({}); // { postId: text }
+  const [isLoadingComments, setIsLoadingComments] = useState({});
+  const [commentUsers, setCommentUsers] = useState({}); // Cache for user data
+  const [postCommentCounts, setPostCommentCounts] = useState({}); // { postId: count }
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -181,23 +188,39 @@ const ProfilePage = () => {
 
         const authHeader = { Authorization: `Bearer ${token}` };
 
-        // Fetch user profile - Correct route: /user/profile/:id
+        // Fetch user profile
         const userResponse = await axios.get(
           `http://localhost:30801/user/profile/${userId}`,
           { headers: authHeader }
         );
 
-        // Fetch user posts - Correct route: /user/:userid/post/userpost/get
+        // Fetch user posts
         const postsResponse = await axios.get(
           `http://localhost:30801/user/${userId}/post/userpost/get`,
           { headers: authHeader }
         );
 
-        // Fetch saved posts - Correct route: /user/post/:userid/saved
+        // Fetch saved posts
         const savedPostsResponse = await axios.get(
           `http://localhost:30801/user/post/${userId}/saved`,
           { headers: authHeader }
         );
+
+        // NEW: Fetch like counts for all posts
+        let likeCounts = {};
+        try {
+          const likeCountsResponse = await axios.get(
+            `http://localhost:30801/api/posts/likeCounts`,
+            { headers: authHeader }
+          );
+          
+          if (likeCountsResponse.data && likeCountsResponse.data.success) {
+            likeCounts = likeCountsResponse.data.likeCounts;
+            console.log('Fetched like counts:', likeCounts);
+          }
+        } catch (error) {
+          console.warn('Could not fetch like counts, will use array length:', error);
+        }
 
         // Get user's liked posts for proper like state
         let likedPostIds = userLikedPosts;
@@ -207,7 +230,7 @@ const ProfilePage = () => {
             { headers: authHeader }
           );
           
-          if (userLikesResponse.data && userLikesResponse.data.likedPosts) {
+          if (userLikesResponse.data && userLikesResponse.data.success) {
             // Update from server if available
             likedPostIds = userLikesResponse.data.likedPosts.map(post => post._id);
             localStorage.setItem('userLikedPosts', JSON.stringify(likedPostIds));
@@ -218,7 +241,7 @@ const ProfilePage = () => {
 
         // Set user data
         if (userResponse.data && userResponse.data.exist) {
-        setUser(userResponse.data.exist);
+          setUser(userResponse.data.exist);
         } else {
           console.error('No user data found in response');
         }
@@ -227,16 +250,24 @@ const ProfilePage = () => {
         if (postsResponse.data && postsResponse.data.data) {
           // Initialize post data with likes as arrays and saved status
           const processedPosts = postsResponse.data.data.map(post => {
+            // Get like count from likeCounts API or fallback to array length
+            const serverLikeCount = likeCounts[post._id] || post.likes?.length || 0;
+            
             // Start with base post data
             const processedPost = {
               ...post,
-              likes: post.likes || [],
-              isSaved: false
+              // Use server like count to populate likes array if available
+              likes: Array(serverLikeCount).fill(null).map((_, index) => 
+                likedPostIds.includes(post._id) && index === 0 ? userId : `like-${index}`
+              ),
+              isSaved: false,
+              // Store the actual count separately for display
+              likeCount: serverLikeCount
             };
             
             // Ensure user ID is in likes array if it should be
             if (likedPostIds.includes(post._id) && !processedPost.likes.includes(userId)) {
-              processedPost.likes = [...processedPost.likes, userId];
+              processedPost.likes = [userId, ...processedPost.likes.slice(1)];
             }
             
             return processedPost;
@@ -269,23 +300,30 @@ const ProfilePage = () => {
           const transformedSavedPosts = savedPostsResponse.data.data
             .filter(item => item.post) // Ensure post exists
             .map(item => {
+              const serverLikeCount = likeCounts[item.post._id] || item.post.likes?.length || 0;
+              
               const savedPost = {
                 ...item.post,
                 isSaved: true,
-                likes: item.post.likes || [],
+                // Use server like count to populate likes array if available
+                likes: Array(serverLikeCount).fill(null).map((_, index) => 
+                  likedPostIds.includes(item.post._id) && index === 0 ? userId : `like-${index}`
+                ),
+                // Store the actual count separately for display
+                likeCount: serverLikeCount,
                 // Ensure user data is available
                 user: item.post.user || userResponse.data.exist
               };
               
               // Ensure like status consistency
               if (likedPostIds.includes(item.post._id) && !savedPost.likes.includes(userId)) {
-                savedPost.likes = [...savedPost.likes, userId];
+                savedPost.likes = [userId, ...savedPost.likes.slice(1)];
               }
               
               return savedPost;
-        });
+            });
         
-        setSavedPosts(transformedSavedPosts);
+          setSavedPosts(transformedSavedPosts);
           // Cache saved posts for persistence
           localStorage.setItem('cachedSavedPosts', JSON.stringify(transformedSavedPosts));
         } else {
@@ -295,12 +333,12 @@ const ProfilePage = () => {
         
         // Initialize form data with user data
         if (userResponse.data && userResponse.data.exist) {
-        setFormData({
-          name: userResponse.data.exist?.name || '',
-          bio: userResponse.data.exist?.bio || '',
-          avatar: userResponse.data.exist?.avatar || ''
-        });
-        setAvatarPreview(userResponse.data.exist?.avatar || '');
+          setFormData({
+            name: userResponse.data.exist?.name || '',
+            bio: userResponse.data.exist?.bio || '',
+            avatar: userResponse.data.exist?.avatar || ''
+          });
+          setAvatarPreview(userResponse.data.exist?.avatar || '');
         }
       } catch (error) {
         console.error('Error fetching profile data:', error);
@@ -315,6 +353,390 @@ const ProfilePage = () => {
 
     fetchProfileData();
   }, []);
+
+  // Fetch comment counts when posts change
+  useEffect(() => {
+    const fetchCommentCounts = async () => {
+      if (!posts || posts.length === 0) return;
+      
+      const token = localStorage.getItem('accessToken');
+      const userId = localStorage.getItem('userId');
+      if (!token || !userId) return;
+      
+      const counts = {};
+      
+      try {
+        // Fetch counts for all posts in parallel
+        await Promise.all(
+          posts.map(async (post) => {
+            try {
+              const response = await axios.get(
+                `http://localhost:30801/user/post/userpost/${post._id}/comment/get`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              
+              if (response.data.success && response.data.comdata) {
+                counts[post._id] = response.data.comdata.length;
+              } else {
+                counts[post._id] = 0;
+              }
+            } catch (error) {
+              console.error(`Error fetching comments for post ${post._id}:`, error);
+              counts[post._id] = 0;
+            }
+          })
+        );
+        
+        setPostCommentCounts(prev => ({ ...prev, ...counts }));
+      } catch (error) {
+        console.error('Error fetching comment counts:', error);
+      }
+    };
+    
+    if (posts.length > 0) {
+      fetchCommentCounts();
+    }
+  }, [posts]);
+
+  // Fetch comment counts for saved posts
+  useEffect(() => {
+    const fetchSavedPostCommentCounts = async () => {
+      if (!savedPosts || savedPosts.length === 0) return;
+      
+      const token = localStorage.getItem('accessToken');
+      const userId = localStorage.getItem('userId');
+      if (!token || !userId) return;
+      
+      const counts = {};
+      
+      try {
+        // Fetch counts for all saved posts in parallel
+        await Promise.all(
+          savedPosts.map(async (post) => {
+            try {
+              const response = await axios.get(
+                `http://localhost:30801/user/post/userpost/${post._id}/comment/get`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              
+              if (response.data.success && response.data.comdata) {
+                counts[post._id] = response.data.comdata.length;
+              } else {
+                counts[post._id] = 0;
+              }
+            } catch (error) {
+              console.error(`Error fetching comments for saved post ${post._id}:`, error);
+              counts[post._id] = 0;
+            }
+          })
+        );
+        
+        setPostCommentCounts(prev => ({ ...prev, ...counts }));
+      } catch (error) {
+        console.error('Error fetching saved post comment counts:', error);
+      }
+    };
+    
+    if (savedPosts.length > 0) {
+      fetchSavedPostCommentCounts();
+    }
+  }, [savedPosts]);
+
+  // --- COMMENT FUNCTIONS FOR MODAL ---
+
+  // Fetch comments when post modal opens
+  useEffect(() => {
+    if (showPostModal && selectedPost && !postComments[selectedPost._id]) {
+      fetchComments(selectedPost._id);
+    }
+  }, [showPostModal, selectedPost]);
+
+  // Fetch user data for a comment if not already cached
+  const fetchCommentUser = async (userId) => {
+    if (!userId) return null;
+    
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(
+        `http://localhost:30801/user/profile/${userId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      if (response.data && response.data.exist) {
+        const userData = response.data.exist;
+        setCommentUsers(prev => ({
+          ...prev,
+          [userId]: userData
+        }));
+        return userData;
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+    return null;
+  };
+
+  // Fetch comments for a specific post
+  const fetchComments = async (postId) => {
+    if (isLoadingComments[postId]) return;
+    
+    setIsLoadingComments(prev => ({ ...prev, [postId]: true }));
+    
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(
+        `http://localhost:30801/user/post/userpost/${postId}/comment/get`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      if (response.data.success && response.data.comdata) {
+        // Process comments to ensure proper user data
+        const processedComments = await Promise.all(
+          response.data.comdata.map(async (comment) => {
+            let userData = null;
+            let userIdFromComment = null;
+            
+            // Extract user ID from comment
+            if (typeof comment.user === 'string') {
+              userIdFromComment = comment.user;
+            } else if (comment.user && comment.user._id) {
+              userIdFromComment = comment.user._id;
+            } else if (comment.userId) {
+              userIdFromComment = comment.userId;
+            }
+            
+            // Try to get user data from cache or fetch it
+            if (userIdFromComment) {
+              // Check if we have cached user data
+              userData = commentUsers[userIdFromComment];
+              
+              // If not in cache, fetch it
+              if (!userData) {
+                userData = await fetchCommentUser(userIdFromComment);
+              }
+            }
+            
+            // Fallback user object if we couldn't get user data
+            const safeUserData = userData || {
+              _id: userIdFromComment || 'unknown',
+              name: 'User',
+              avatar: DEFAULT_AVATAR
+            };
+            
+            return {
+              ...comment,
+              user: safeUserData,
+              // Handle both date field names
+              createdAt: comment.createdAt || comment.date || new Date().toISOString()
+            };
+          })
+        );
+        
+        setPostComments(prev => ({
+          ...prev,
+          [postId]: processedComments
+        }));
+        
+        // Update comment count
+        setPostCommentCounts(prev => ({
+          ...prev,
+          [postId]: processedComments.length
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    } finally {
+      setIsLoadingComments(prev => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  // Post a new comment
+  const postComment = async (postId) => {
+    const commentText = newCommentText[postId]?.trim();
+    const userId = localStorage.getItem('userId');
+    const token = localStorage.getItem('accessToken');
+    
+    if (!commentText || !userId || !token) return;
+
+    // Optimistic update
+    const tempCommentId = `temp_${Date.now()}`;
+    const optimisticComment = {
+      _id: tempCommentId,
+      text: commentText,
+      user: {
+        _id: userId,
+        name: user?.name || 'You',
+        avatar: user?.avatar
+      },
+      createdAt: new Date().toISOString()
+    };
+
+    setPostComments(prev => ({
+      ...prev,
+      [postId]: [optimisticComment, ...(prev[postId] || [])]
+    }));
+
+    // Update comment count optimistically
+    setPostCommentCounts(prev => ({
+      ...prev,
+      [postId]: (prev[postId] || 0) + 1
+    }));
+
+    // Clear input
+    setNewCommentText(prev => ({ ...prev, [postId]: '' }));
+
+    try {
+      const response = await axios.post(
+        `http://localhost:30801/user/${userId}/post/userpost/${postId}/comment/add`,
+        { text: commentText },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        // Refetch comments to get the actual comment with proper ID
+        await fetchComments(postId);
+      }
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      // Remove optimistic comment on error
+      setPostComments(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || []).filter(comment => comment._id !== tempCommentId)
+      }));
+      
+      // Revert comment count
+      setPostCommentCounts(prev => ({
+        ...prev,
+        [postId]: Math.max((prev[postId] || 0) - 1, 0)
+      }));
+      
+      // Restore the text
+      setNewCommentText(prev => ({ ...prev, [postId]: commentText }));
+    }
+  };
+
+  // Delete a comment
+  const deleteComment = async (commentId, postId) => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) return;
+
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.delete(
+        `http://localhost:30801/user/post/userpost/comment/${commentId}/delete`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        // Remove comment from state
+        setPostComments(prev => ({
+          ...prev,
+          [postId]: (prev[postId] || []).filter(comment => comment._id !== commentId)
+        }));
+        
+        // Update comment count
+        setPostCommentCounts(prev => ({
+          ...prev,
+          [postId]: Math.max((prev[postId] || 0) - 1, 0)
+        }));
+      }
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+    }
+  };
+
+  // Update a comment
+  const updateComment = async (commentId, postId, newText) => {
+    if (!newText.trim()) return;
+
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.patch(
+        `http://localhost:30801/user/post/userpost/comment/${commentId}/update`,
+        { text: newText },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        // Update comment in state
+        setPostComments(prev => ({
+          ...prev,
+          [postId]: (prev[postId] || []).map(comment => 
+            comment._id === commentId ? { ...comment, text: newText } : comment
+          )
+        }));
+      }
+    } catch (error) {
+      console.error('Error updating comment:', error);
+    }
+  };
+
+  // Format date safely for comments
+  const formatCommentDate = (dateString) => {
+    if (!dateString) return '';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return '';
+      }
+      
+      // Show relative time for recent comments
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m`;
+      if (diffHours < 24) return `${diffHours}h`;
+      if (diffDays < 7) return `${diffDays}d`;
+      
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch (error) {
+      return '';
+    }
+  };
+
+  // Get user name safely
+  const getCommentUserName = (comment) => {
+    if (!comment || !comment.user) return 'User';
+    
+    if (typeof comment.user === 'string') {
+      return 'User';
+    }
+    
+    return comment.user.name || comment.user.username || 'User';
+  };
+
+  // Get user ID safely
+  const getCommentUserId = (comment) => {
+    if (!comment || !comment.user) return null;
+    
+    if (typeof comment.user === 'string') {
+      return comment.user;
+    }
+    
+    return comment.user._id || comment.user.id;
+  };
+
+  // Get user avatar safely
+  const getCommentUserAvatar = (comment) => {
+    if (!comment || !comment.user || typeof comment.user === 'string') {
+      return DEFAULT_AVATAR;
+    }
+    
+    return comment.user.avatar || comment.user.profilePicture || DEFAULT_AVATAR;
+  };
+
+  // Handle comment user click
+  const handleCommentUserClick = (comment, e) => {
+    e.stopPropagation();
+    const userId = getCommentUserId(comment);
+    if (userId) {
+      navigate(`/profile/${userId}`);
+    }
+  };
 
   // Check if Firebase is properly initialized
   useEffect(() => {
@@ -563,11 +985,14 @@ const ProfilePage = () => {
       const updatedPosts = posts.map(post => {
         if (post._id === postId) {
           const isLiked = post.likes?.includes(userId);
+          const newLikeCount = isLiked ? (post.likeCount || post.likes?.length || 0) - 1 : (post.likeCount || post.likes?.length || 0) + 1;
+          
           return {
             ...post,
             likes: isLiked 
               ? (post.likes || []).filter(id => id !== userId) 
-              : [...(post.likes || []), userId]
+              : [...(post.likes || []), userId],
+            likeCount: newLikeCount
           };
         }
         return post;
@@ -578,11 +1003,14 @@ const ProfilePage = () => {
       // If the post is selected in modal, update it too
       if (selectedPost && selectedPost._id === postId) {
         const isLiked = selectedPost.likes?.includes(userId);
+        const newLikeCount = isLiked ? (selectedPost.likeCount || selectedPost.likes?.length || 0) - 1 : (selectedPost.likeCount || selectedPost.likes?.length || 0) + 1;
+        
         setSelectedPost({
           ...selectedPost,
           likes: isLiked 
             ? (selectedPost.likes || []).filter(id => id !== userId) 
-            : [...(selectedPost.likes || []), userId]
+            : [...(selectedPost.likes || []), userId],
+          likeCount: newLikeCount
         });
       }
       
@@ -590,11 +1018,14 @@ const ProfilePage = () => {
       const updatedSavedPosts = savedPosts.map(post => {
         if (post._id === postId) {
           const isLiked = post.likes?.includes(userId);
+          const newLikeCount = isLiked ? (post.likeCount || post.likes?.length || 0) - 1 : (post.likeCount || post.likes?.length || 0) + 1;
+          
           return {
             ...post,
             likes: isLiked 
               ? (post.likes || []).filter(id => id !== userId) 
-              : [...(post.likes || []), userId]
+              : [...(post.likes || []), userId],
+            likeCount: newLikeCount
           };
         }
         return post;
@@ -631,6 +1062,37 @@ const ProfilePage = () => {
       );
       
       console.log('Like post response:', response.data);
+      
+      // Update the like count from server response if available
+      if (response.data && response.data.likes !== undefined) {
+        // Update posts with server like count
+        const updatedPostsWithServerCount = updatedPosts.map(post => {
+          if (post._id === postId) {
+            return {
+              ...post,
+              likeCount: response.data.likes
+            };
+          }
+          return post;
+        });
+        setPosts(updatedPostsWithServerCount);
+        
+        // Update saved posts
+        const updatedSavedPostsWithServerCount = updatedSavedPosts.map(post => {
+          if (post._id === postId) {
+            return {
+              ...post,
+              likeCount: response.data.likes
+            };
+          }
+          return post;
+        });
+        setSavedPosts(updatedSavedPostsWithServerCount);
+        
+        // Update localStorage
+        localStorage.setItem('cachedPosts', JSON.stringify(updatedPostsWithServerCount));
+        localStorage.setItem('cachedSavedPosts', JSON.stringify(updatedSavedPostsWithServerCount));
+      }
     } catch (error) {
       console.error('Error liking post:', error);
       // If API fails, we've already updated the UI optimistically
@@ -897,11 +1359,11 @@ const ProfilePage = () => {
                 <div className="post-interactions">
                   <span>
                     <Heart size={20} className="interaction-icon" /> 
-                    {post.likes?.length || 0}
+                    {post.likeCount || post.likes?.length || 0}
                   </span>
                   <span>
                     <MessageCircle size={20} className="interaction-icon" /> 
-                    {post.comments?.length || 0}
+                    {postCommentCounts[post._id] || 0}
                   </span>
                 </div>
                 
@@ -997,6 +1459,20 @@ const ProfilePage = () => {
           setSavedPosts(updatedSavedPosts);
           localStorage.setItem('cachedSavedPosts', JSON.stringify(updatedSavedPosts));
         }
+        
+        // Also remove any comments for this post
+        setPostComments(prev => {
+          const newComments = { ...prev };
+          delete newComments[selectedPost._id];
+          return newComments;
+        });
+        
+        // Remove comment count for this post
+        setPostCommentCounts(prev => {
+          const newCounts = { ...prev };
+          delete newCounts[selectedPost._id];
+          return newCounts;
+        });
         
         // Close modal and reset states
         setShowPostModal(false);
@@ -1749,7 +2225,7 @@ const ProfilePage = () => {
                     </button>
                   </div>
                   <div className="post-likes">
-                    <strong>{selectedPost.likes?.length || 0} likes</strong>
+                    <strong>{selectedPost.likeCount || selectedPost.likes?.length || 0} likes</strong>
                   </div>
                   <div className="post-date">
                     {formatDate(selectedPost.date || selectedPost.createdAt)}
@@ -1758,16 +2234,100 @@ const ProfilePage = () => {
                 
                 <div className="post-comments-section">
                   <div className="post-comments-container">
-                    {/* Comment section would go here */}
-                    <p className="no-comments-yet">No comments yet.</p>
+                    {isLoadingComments[selectedPost._id] ? (
+                      <div className="loading-comments">Loading comments...</div>
+                    ) : postComments[selectedPost._id] && postComments[selectedPost._id].length > 0 ? (
+                      postComments[selectedPost._id].map(comment => {
+                        const userName = getCommentUserName(comment);
+                        const userId = getCommentUserId(comment);
+                        const userAvatar = getCommentUserAvatar(comment);
+                        const commentDate = formatCommentDate(comment.createdAt);
+                        
+                        return (
+                          <div key={comment._id} className="comment-item">
+                            <div 
+                              className="comment-avatar"
+                              onClick={(e) => handleCommentUserClick(comment, e)}
+                            >
+                              <img 
+                                src={userAvatar} 
+                                alt={userName} 
+                                className="comment-user-avatar"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = DEFAULT_AVATAR;
+                                }}
+                              />
+                            </div>
+                            <div className="comment-content">
+                              <div className="comment-header">
+                                <span 
+                                  className="comment-username"
+                                  onClick={(e) => handleCommentUserClick(comment, e)}
+                                  style={{ cursor: userId ? 'pointer' : 'default' }}
+                                >
+                                  {userName}
+                                </span>
+                                {commentDate && (
+                                  <span className="comment-time">
+                                    {commentDate}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="comment-text">{comment.text}</p>
+                              {userId === localStorage.getItem('userId') && (
+                                <div className="comment-actions">
+                                  <button 
+                                    className="comment-action-btn"
+                                    onClick={() => {
+                                      const newText = prompt('Edit your comment:', comment.text);
+                                      if (newText !== null) {
+                                        updateComment(comment._id, selectedPost._id, newText);
+                                      }
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button 
+                                    className="comment-action-btn delete"
+                                    onClick={() => deleteComment(comment._id, selectedPost._id)}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="no-comments-yet">No comments yet.</p>
+                    )}
                   </div>
                   <div className="add-comment-container">
                     <input
                       type="text"
                       placeholder="Add a comment..."
                       className="comment-input"
+                      value={newCommentText[selectedPost._id] || ''}
+                      onChange={(e) => setNewCommentText(prev => ({
+                        ...prev,
+                        [selectedPost._id]: e.target.value
+                      }))}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          postComment(selectedPost._id);
+                        }
+                      }}
                     />
-                    <button className="post-comment-button">Post</button>
+                    <button 
+                      className="post-comment-button"
+                      onClick={() => postComment(selectedPost._id)}
+                      disabled={!newCommentText[selectedPost._id]?.trim()}
+                    >
+                      <Send size={16} />
+                    </button>
                   </div>
                 </div>
               </div>
