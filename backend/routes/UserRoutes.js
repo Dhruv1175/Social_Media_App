@@ -1,11 +1,11 @@
 import express from "express";
 import { verifyToken } from "../middleware/VerifyToken.js";
 import { getUserProfile, loginUser, registerUser, updateProfile, getAllUsers } from "../controllers/UserController.js";
-import { createPost, deletePost, deleteSavedPost, feed, getOnePost, getAllPost, getSavedPost, getUserPost, savedPost, updatePost, getLikeCounts } from "../controllers/PostController.js";
+import { createPost, deletePost, deleteSavedPost, feed, getOnePost, getAllPost, getSavedPost, getUserPost, savedPost, updatePost, getLikeCounts  , getAllPosts} from "../controllers/PostController.js";
 import { addComment, deleteComment, getComment, updateComment } from "../controllers/CommentController.js";
-import { toggleLikeComment, toggleLikePost, getUserLikes } from "../controllers/LikeController.js";
+import { toggleLikeComment, toggleLikePost, getUserLikes ,  } from "../controllers/LikeController.js";
 import { getFollow, getFollowing, toggleFollow, getAllFollowRelationships, checkFollowStatus } from "../controllers/FollowController.js";
-import { markAllNotificationsAsRead } from "../controllers/NotificationController.js";
+import { markAllNotificationsAsRead, getNotifications, markNotificationAsRead,  getUnreadCount } from "../controllers/NotificationController.js";
 import { DirectMessage, getMessage, sendMessage, getMessagedUsers } from "../controllers/MessageController.js";
 import { searchPosts, searchUser } from "../controllers/SearchControllers.js";
 // NEW IMPORTS for Story functionality
@@ -24,6 +24,7 @@ route.get("/user/get/all",verifyToken,getAllUsers);
 //post action routes
 route.post("/user/:userid/post/userpost/create",verifyToken,createPost);
 route.get("/user/post/get",verifyToken,getAllPost);
+route.get("/user/posts/get",verifyToken,getAllPosts);
 route.get("/user/:userid/post/userpost/get",verifyToken,getUserPost);
 route.get("/user/post/userpost/:postid/get",verifyToken,getOnePost);
 route.patch("/user/post/userpost/:postid/update",verifyToken,updatePost);
@@ -60,6 +61,10 @@ route.get("/follows/check/:userid/:followid", checkFollowStatus);
 
 //notification action routes
 route.get("/user/:userid/notification",verifyToken,markAllNotificationsAsRead)
+route.get("/user/:userid/notifications", verifyToken, getNotifications);
+route.get("/user/:userid/notifications/unread", verifyToken, getUnreadCount);
+route.patch("/user/:userid/notification/:notificationId/read", verifyToken, markNotificationAsRead);
+route.post("/user/:userid/notification/mark-all-read", verifyToken, markAllNotificationsAsRead);
 
 //message action routes
 route.post("/user/:userid/receiver/:receiverid/message/send",verifyToken,sendMessage)

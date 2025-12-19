@@ -276,3 +276,46 @@ export const getLikeCounts = async (req, res) => {
         });
     }
 };
+export const getAllPosts = async(req,res)=>{
+    try{
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 12;
+        const category = req.query.category;
+        const skip = (page - 1) * limit;
+        
+        // Build query based on category
+        let query = {};
+        if (category && category !== 'all') {
+            // You might want to add tags or categories to your post model
+            // For now, we'll filter by postType or other fields
+            if (['reel', 'post'].includes(category)) {
+                query.postType = category;
+            }
+        }
+        
+        const posts = await postmodel.find(query)
+            .sort({date: -1})
+            .skip(skip)
+            .limit(limit)
+            .populate("user","name avatar username bio");
+        
+        const total = await postmodel.countDocuments(query);
+        
+        if(posts){
+            res.status(200).send({
+                posts: posts, 
+                currentPage: page,
+                totalPages: Math.ceil(total / limit),
+                totalPosts: total,
+                success: true
+            })
+        }
+        else{
+            res.status(200).send({message:"Could not Fetch Posts", success:false})
+        }
+    }
+    catch(error){
+        console.error("Error in getAllPosts:", error);
+        res.status(500).send({message:"Something Went Wrong",success:false})
+    }
+}

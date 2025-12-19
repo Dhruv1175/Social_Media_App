@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/Sidebar';
-import { Grid, Bookmark, User, MoreHorizontal, Edit, Trash2, Heart, MessageCircle, Share2, X, BookmarkCheck, Film, Send } from 'lucide-react';
+import { Grid, Bookmark, User, MoreHorizontal, Edit, Trash2, Heart, MessageCircle, Share2, X, BookmarkCheck, Film, Send, Check, X as XIcon } from 'lucide-react';
 import '../styles/UserProfilePage.css';
 import '../styles/ProfilePage.css';
 
@@ -11,7 +11,7 @@ const DEFAULT_AVATAR = '/assets/default-avatar.svg';
 const DEFAULT_POST = '/assets/default-post.svg';
 const DEFAULT_VIDEO = '/assets/default-video.svg';
 
-// PostOptions component to better handle options menu
+// PostOptions component
 const PostOptions = ({ post, currentUser, onEdit, onDelete }) => {
   const [showOptions, setShowOptions] = useState(false);
   const optionsRef = useRef(null);
@@ -103,7 +103,6 @@ const UserProfilePage = () => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [showPostModal, setShowPostModal] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [followError, setFollowError] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [showUnfollowConfirm, setShowUnfollowConfirm] = useState(false);
   const [showPostOptions, setShowPostOptions] = useState(false);
@@ -113,29 +112,30 @@ const UserProfilePage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showUnfollowDialog, setShowUnfollowDialog] = useState(false);
   const shareMenuRef = useRef(null);
   const optionsRef = useRef(null);
 
   // Comment states
-  const [postComments, setPostComments] = useState({}); // { postId: [comments] }
-  const [newCommentText, setNewCommentText] = useState({}); // { postId: text }
+  const [postComments, setPostComments] = useState({});
+  const [newCommentText, setNewCommentText] = useState({});
   const [isLoadingComments, setIsLoadingComments] = useState({});
-  const [commentUsers, setCommentUsers] = useState({}); // Cache for user data
-  const [postCommentCounts, setPostCommentCounts] = useState({}); // { postId: count }
+  const [commentUsers, setCommentUsers] = useState({});
+  const [postCommentCounts, setPostCommentCounts] = useState({});
 
+  // Fetch data when userId changes
   useEffect(() => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('accessToken');
         const currentUserId = localStorage.getItem('userId');
-        const userLikedPosts = JSON.parse(localStorage.getItem('userLikedPosts') || '[]');
         
         if (!token || !currentUserId) {
           navigate('/');
           return;
         }
 
-        // If the profile being viewed is the current user's profile, redirect to the main profile page
+        // If viewing own profile, redirect to main profile page
         if (userId === currentUserId) {
           navigate('/profile');
           return;
@@ -163,36 +163,33 @@ const UserProfilePage = () => {
           return;
         }
 
-        setProfileUser(profileResponse.data.exist);
+        const fetchedProfileUser = profileResponse.data.exist;
+        setProfileUser(fetchedProfileUser);
         
-        // First check session storage for this specific follow relationship
-        const sessionFollowKey = `follow_status_${currentUserId}_${userId}`;
-        const sessionFollowStatus = sessionStorage.getItem(sessionFollowKey);
-        
-        if (sessionFollowStatus !== null) {
-          // Use cached follow status as initial state
-          const followStatusFromSession = sessionFollowStatus === 'true';
-          console.log(`Retrieved follow status from session: ${followStatusFromSession}`);
-          setIsFollowing(followStatusFromSession);
-        } else {
-          // Check if current user is following this profile from server data
-          const isFollowingFromServer = profileResponse.data.exist.followers?.some(
-            followerObj => followerObj?.follower?._id === currentUserId ||
-                          followerObj?._id === currentUserId
-          ) || false;
-          
-          // Set following state based on server data
-          setIsFollowing(isFollowingFromServer);
-          console.log('Initial follow status from server:', isFollowingFromServer);
-          
-          // Save to session storage for persistence
-          sessionStorage.setItem(sessionFollowKey, isFollowingFromServer.toString());
-        }
-        
-        // Update followers count
-        setFollowersCount(profileResponse.data.exist.followers?.length || 0);
+        // Update followers count from profile data
+        setFollowersCount(fetchedProfileUser.followers?.length || 0);
 
-        // NEW: Fetch like counts for all posts
+        // Fetch follow status directly from the check endpoint
+        try {
+          const followCheckResponse = await axios.get(
+            `http://localhost:30801/follows/check/${currentUserId}/${userId}`,
+            { headers }
+          );
+          
+          if (followCheckResponse.data && followCheckResponse.data.isFollowing !== undefined) {
+            setIsFollowing(followCheckResponse.data.isFollowing);
+            console.log('Follow status from check endpoint:', followCheckResponse.data.isFollowing);
+          }
+        } catch (followCheckError) {
+          console.error('Error checking follow status:', followCheckError);
+          // Fallback: Check from profile data
+          const isFollowingFromProfile = fetchedProfileUser.followers?.some(
+            follower => follower.follower?._id === currentUserId || follower._id === currentUserId
+          ) || false;
+          setIsFollowing(isFollowingFromProfile);
+        }
+
+        // Fetch like counts for all posts
         let likeCounts = {};
         try {
           const likeCountsResponse = await axios.get(
@@ -202,14 +199,13 @@ const UserProfilePage = () => {
           
           if (likeCountsResponse.data && likeCountsResponse.data.success) {
             likeCounts = likeCountsResponse.data.likeCounts;
-            console.log('Fetched like counts:', likeCounts);
           }
         } catch (error) {
-          console.warn('Could not fetch like counts, will use array length:', error);
+          console.warn('Could not fetch like counts:', error);
         }
 
-        // Get user's liked posts for proper like state
-        let likedPostIds = userLikedPosts;
+        // Get user's liked posts
+        let likedPostIds = JSON.parse(localStorage.getItem('userLikedPosts') || '[]');
         try {
           const userLikesResponse = await axios.get(
             `http://localhost:30801/user/${currentUserId}/likes`,
@@ -217,12 +213,11 @@ const UserProfilePage = () => {
           );
           
           if (userLikesResponse.data && userLikesResponse.data.success) {
-            // Update from server if available
             likedPostIds = userLikesResponse.data.likedPosts.map(post => post._id);
             localStorage.setItem('userLikedPosts', JSON.stringify(likedPostIds));
           }
         } catch (error) {
-          console.warn('Could not fetch user likes, using cached likes', error);
+          console.warn('Could not fetch user likes:', error);
         }
 
         // Fetch user posts
@@ -232,24 +227,18 @@ const UserProfilePage = () => {
         );
 
         if (postsResponse.data && postsResponse.data.data) {
-          // Process posts with like counts
           const processedPosts = postsResponse.data.data.map(post => {
-            // Get like count from likeCounts API or fallback to array length
             const serverLikeCount = likeCounts[post._id] || post.likes?.length || 0;
             
-            // Start with base post data
             const processedPost = {
               ...post,
-              // Use server like count to populate likes array if available
               likes: Array(serverLikeCount).fill(null).map((_, index) => 
                 likedPostIds.includes(post._id) && index === 0 ? currentUserId : `like-${index}`
               ),
               isSaved: false,
-              // Store the actual count separately for display
               likeCount: serverLikeCount
             };
             
-            // Ensure user ID is in likes array if it should be
             if (likedPostIds.includes(post._id) && !processedPost.likes.includes(currentUserId)) {
               processedPost.likes = [currentUserId, ...processedPost.likes.slice(1)];
             }
@@ -272,6 +261,132 @@ const UserProfilePage = () => {
     fetchData();
   }, [userId, navigate]);
 
+  // Function to refresh user data including follow status
+  const refreshUserData = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const currentUserId = localStorage.getItem('userId');
+      
+      if (!token || !currentUserId || !profileUser) return;
+      
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      // Refresh profile user data
+      const profileResponse = await axios.get(
+        `http://localhost:30801/user/profile/${userId}`,
+        { headers }
+      );
+      
+      if (profileResponse.data && profileResponse.data.exist) {
+        const updatedProfileUser = profileResponse.data.exist;
+        setProfileUser(updatedProfileUser);
+        setFollowersCount(updatedProfileUser.followers?.length || 0);
+      }
+      
+      // Refresh follow status
+      const followCheckResponse = await axios.get(
+        `http://localhost:30801/follows/check/${currentUserId}/${userId}`,
+        { headers }
+      );
+      
+      if (followCheckResponse.data && followCheckResponse.data.isFollowing !== undefined) {
+        setIsFollowing(followCheckResponse.data.isFollowing);
+        console.log('Refreshed follow status:', followCheckResponse.data.isFollowing);
+      }
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+    }
+  };
+
+  // Handle follow/unfollow
+  const handleFollow = async () => {
+    if (followLoading) return;
+    
+    try {
+      setFollowLoading(true);
+      const token = localStorage.getItem('accessToken');
+      const currentUserId = localStorage.getItem('userId');
+      
+      if (!currentUserId || !profileUser) {
+        setFollowLoading(false);
+        return;
+      }
+
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      // Determine endpoint based on current follow status
+      const endpoint = isFollowing 
+        ? `http://localhost:30801/user/${currentUserId}/${profileUser._id}/unfollow`
+        : `http://localhost:30801/user/${currentUserId}/${profileUser._id}/follow`;
+      
+      console.log(`${isFollowing ? 'Unfollowing' : 'Following'} user ${profileUser._id}`);
+      
+      // Optimistic update
+      const wasFollowing = isFollowing;
+      setIsFollowing(!wasFollowing);
+      setFollowersCount(prev => wasFollowing ? Math.max(0, prev - 1) : prev + 1);
+      
+      try {
+        const response = await axios.post(endpoint, {}, { headers });
+        
+        if (response.data && response.data.success) {
+          console.log(`${wasFollowing ? 'Unfollowed' : 'Followed'} successfully`);
+          
+          // Close unfollow dialog if it was open
+          if (wasFollowing) {
+            setShowUnfollowDialog(false);
+          }
+          
+          // Refresh data after a short delay
+          setTimeout(() => {
+            refreshUserData();
+          }, 100);
+        } else {
+          // Revert optimistic update on failure
+          setIsFollowing(wasFollowing);
+          setFollowersCount(prev => wasFollowing ? prev + 1 : Math.max(0, prev - 1));
+          alert(response.data?.message || 'Operation failed');
+        }
+      } catch (apiError) {
+        console.error('API error:', apiError);
+        // Revert optimistic update
+        setIsFollowing(wasFollowing);
+        setFollowersCount(prev => wasFollowing ? prev + 1 : Math.max(0, prev - 1));
+        
+        if (apiError.response?.status === 401) {
+          alert('Session expired. Please login again.');
+          navigate('/login');
+        } else {
+          alert(apiError.response?.data?.message || 'Failed to update follow status');
+        }
+      }
+    } catch (error) {
+      console.error('Error in follow process:', error);
+      alert('Error processing your request');
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  // Handle follow button click
+  const handleFollowClick = () => {
+    if (isFollowing) {
+      setShowUnfollowDialog(true);
+    } else {
+      handleFollow();
+    }
+  };
+
+  // Handle unfollow confirmation
+  const handleUnfollowConfirm = () => {
+    handleFollow();
+  };
+
+  // Handle message button click
+  const handleMessage = () => {
+    navigate('/messages', { state: { selectedContact: profileUser } });
+  };
+
   // Fetch comment counts when posts change
   useEffect(() => {
     const fetchCommentCounts = async () => {
@@ -284,7 +399,6 @@ const UserProfilePage = () => {
       const counts = {};
       
       try {
-        // Fetch counts for all posts in parallel
         await Promise.all(
           posts.map(async (post) => {
             try {
@@ -323,7 +437,56 @@ const UserProfilePage = () => {
     }
   }, [showPostModal, selectedPost]);
 
-  // Fetch user data for a comment if not already cached
+  // Fetch comments for a specific post
+  const fetchComments = async (postId) => {
+    if (isLoadingComments[postId]) return;
+    
+    setIsLoadingComments(prev => ({ ...prev, [postId]: true }));
+    
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(
+        `http://localhost:30801/user/post/userpost/${postId}/comment/get`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      if (response.data && response.data.success && response.data.comdata) {
+        const processedComments = await Promise.all(
+          response.data.comdata.map(async (comment) => {
+            let userData = comment.user;
+            
+            if (typeof comment.user === 'string') {
+              userData = commentUsers[comment.user] || await fetchCommentUser(comment.user);
+            } else if (comment.user && !comment.user.name) {
+              userData = commentUsers[comment.user._id] || await fetchCommentUser(comment.user._id);
+            }
+            
+            return {
+              ...comment,
+              user: userData || { _id: comment.user || comment.user?._id, name: 'User' },
+              createdAt: comment.createdAt || comment.date || new Date().toISOString()
+            };
+          })
+        );
+        
+        setPostComments(prev => ({
+          ...prev,
+          [postId]: processedComments
+        }));
+        
+        setPostCommentCounts(prev => ({
+          ...prev,
+          [postId]: processedComments.length
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    } finally {
+      setIsLoadingComments(prev => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  // Fetch user data for comment
   const fetchCommentUser = async (userId) => {
     if (!userId) return null;
     
@@ -347,60 +510,6 @@ const UserProfilePage = () => {
     return null;
   };
 
-  // Fetch comments for a specific post
-  const fetchComments = async (postId) => {
-    if (isLoadingComments[postId]) return;
-    
-    setIsLoadingComments(prev => ({ ...prev, [postId]: true }));
-    
-    try {
-      const token = localStorage.getItem('accessToken');
-      const response = await axios.get(
-        `http://localhost:30801/user/post/userpost/${postId}/comment/get`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      if (response.data && response.data.success && response.data.comdata) {
-        // Process comments to ensure proper user data
-        const processedComments = await Promise.all(
-          response.data.comdata.map(async (comment) => {
-            let userData = comment.user;
-            
-            // If user is just an ID, fetch user data
-            if (typeof comment.user === 'string') {
-              userData = commentUsers[comment.user] || await fetchCommentUser(comment.user);
-            } else if (comment.user && !comment.user.name) {
-              // If user object exists but lacks details, try to fetch
-              userData = commentUsers[comment.user._id] || await fetchCommentUser(comment.user._id);
-            }
-            
-            return {
-              ...comment,
-              user: userData || { _id: comment.user || comment.user?._id, name: 'User' },
-              // Handle both date field names
-              createdAt: comment.createdAt || comment.date || new Date().toISOString()
-            };
-          })
-        );
-        
-        setPostComments(prev => ({
-          ...prev,
-          [postId]: processedComments
-        }));
-        
-        // Update comment count
-        setPostCommentCounts(prev => ({
-          ...prev,
-          [postId]: processedComments.length
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching comments:', error);
-    } finally {
-      setIsLoadingComments(prev => ({ ...prev, [postId]: false }));
-    }
-  };
-
   // Post a new comment
   const postComment = async (postId) => {
     const commentText = newCommentText[postId]?.trim();
@@ -409,7 +518,6 @@ const UserProfilePage = () => {
     
     if (!commentText || !currentUserId || !token) return;
 
-    // Optimistic update
     const tempCommentId = `temp_${Date.now()}`;
     const optimisticComment = {
       _id: tempCommentId,
@@ -427,13 +535,11 @@ const UserProfilePage = () => {
       [postId]: [optimisticComment, ...(prev[postId] || [])]
     }));
 
-    // Update comment count optimistically
     setPostCommentCounts(prev => ({
       ...prev,
       [postId]: (prev[postId] || 0) + 1
     }));
 
-    // Clear input
     setNewCommentText(prev => ({ ...prev, [postId]: '' }));
 
     try {
@@ -444,24 +550,20 @@ const UserProfilePage = () => {
       );
 
       if (response.data && response.data.success) {
-        // Refetch comments to get the actual comment with proper ID
         await fetchComments(postId);
       }
     } catch (error) {
       console.error('Error posting comment:', error);
-      // Remove optimistic comment on error
       setPostComments(prev => ({
         ...prev,
         [postId]: (prev[postId] || []).filter(comment => comment._id !== tempCommentId)
       }));
       
-      // Revert comment count
       setPostCommentCounts(prev => ({
         ...prev,
         [postId]: Math.max((prev[postId] || 0) - 1, 0)
       }));
       
-      // Restore the text
       setNewCommentText(prev => ({ ...prev, [postId]: commentText }));
     }
   };
@@ -478,13 +580,11 @@ const UserProfilePage = () => {
       );
 
       if (response.data && response.data.success) {
-        // Remove comment from state
         setPostComments(prev => ({
           ...prev,
           [postId]: (prev[postId] || []).filter(comment => comment._id !== commentId)
         }));
         
-        // Update comment count
         setPostCommentCounts(prev => ({
           ...prev,
           [postId]: Math.max((prev[postId] || 0) - 1, 0)
@@ -508,7 +608,6 @@ const UserProfilePage = () => {
       );
 
       if (response.data && response.data.success) {
-        // Update comment in state
         setPostComments(prev => ({
           ...prev,
           [postId]: (prev[postId] || []).map(comment => 
@@ -521,17 +620,14 @@ const UserProfilePage = () => {
     }
   };
 
-  // Format date safely for comments
+  // Format date for comments
   const formatCommentDate = (dateString) => {
     if (!dateString) return '';
     
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        return '';
-      }
+      if (isNaN(date.getTime())) return '';
       
-      // Show relative time for recent comments
       const now = new Date();
       const diffMs = now - date;
       const diffMins = Math.floor(diffMs / 60000);
@@ -549,7 +645,7 @@ const UserProfilePage = () => {
     }
   };
 
-  // Get user name safely
+  // Get comment user name
   const getCommentUserName = (comment) => {
     if (!comment.user) return 'User';
     
@@ -560,7 +656,7 @@ const UserProfilePage = () => {
     return comment.user.name || 'User';
   };
 
-  // Get user ID safely
+  // Get comment user ID
   const getCommentUserId = (comment) => {
     if (!comment.user) return null;
     
@@ -571,7 +667,7 @@ const UserProfilePage = () => {
     return comment.user._id;
   };
 
-  // Get user avatar safely
+  // Get comment user avatar
   const getCommentUserAvatar = (comment) => {
     if (!comment.user || typeof comment.user === 'string') {
       return null;
@@ -589,236 +685,17 @@ const UserProfilePage = () => {
     }
   };
 
-  const handleFollow = async () => {
-    if (followLoading) return; // Prevent multiple clicks
-    
-    // Reset error state
-    setFollowError(false);
-    
-    // If already following, show confirmation first
-    if (isFollowing && !showUnfollowConfirm) {
-      setShowUnfollowConfirm(true);
-      setTimeout(() => {
-        setShowUnfollowConfirm(false);
-      }, 3000); // Auto-reset after 3 seconds
-      return;
-    }
-    
-    try {
-      setFollowLoading(true);
-      const token = localStorage.getItem('accessToken');
-      const currentUserId = localStorage.getItem('userId');
-      
-      if (!currentUserId || !profileUser) {
-        setFollowLoading(false);
-        return;
-      }
-
-      // Always include authentication headers
-      const headers = { Authorization: `Bearer ${token}` };
-      
-      // Use the correct API endpoint formats from the backend routes
-      const endpoint = isFollowing 
-        ? `http://localhost:30801/user/${currentUserId}/${profileUser._id}/unfollow`
-        : `http://localhost:30801/user/${currentUserId}/${profileUser._id}/follow`;
-      
-      console.log(`Using endpoint: ${endpoint} for ${isFollowing ? 'unfollow' : 'follow'} action`);
-      
-      // Create session storage key for this follow relationship
-      const sessionFollowKey = `follow_status_${currentUserId}_${profileUser._id}`;
-      
-      // Optimistically update UI
-      const originalFollowStatus = isFollowing;
-      const newFollowStatus = !isFollowing;
-      
-      setIsFollowing(newFollowStatus);
-      // Update session storage immediately for persistence
-      sessionStorage.setItem(sessionFollowKey, newFollowStatus.toString());
-      
-      setFollowersCount(prev => originalFollowStatus ? Math.max(0, prev - 1) : prev + 1);
-      
-      try {
-        // Make the API call with correct endpoint and empty body (as per backend implementation)
-        const response = await axios.post(
-          endpoint,
-          {}, // Empty body as the backend uses route parameters
-          { headers }
-        );
-
-        // Log the response for debugging
-        console.log('Follow/unfollow API response:', response.data);
-
-        // If response is successful, update the profile user object
-        if (response.data && response.data.success) {
-          // Reset unfollow confirmation if it was an unfollow action
-          if (originalFollowStatus) {
-            setShowUnfollowConfirm(false);
-          }
-          
-          console.log(`Successfully ${originalFollowStatus ? 'unfollowed' : 'followed'} user.`);
-          
-          // Manually set the follow state based on the action we just performed
-          setIsFollowing(newFollowStatus);
-          sessionStorage.setItem(sessionFollowKey, newFollowStatus.toString());
-          
-          // Create a small delay before refreshing data to let the database update
-          setTimeout(() => fetchFollowStatus(), 500);
-        } else {
-          // If the server returned success:false, revert the optimistic updates
-          console.error('Follow/unfollow action failed:', response.data);
-          setIsFollowing(originalFollowStatus);
-          // Update session storage with reverted state
-          sessionStorage.setItem(sessionFollowKey, originalFollowStatus.toString());
-          
-          setFollowersCount(prev => originalFollowStatus ? prev + 1 : Math.max(0, prev - 1));
-          throw new Error(response.data.message || 'Failed to update follow status');
-        }
-      } catch (error) {
-        console.error('Follow/unfollow request failed:', error);
-        
-        // Revert UI state to what it was before the optimistic update
-        setIsFollowing(originalFollowStatus);
-        // Update session storage with reverted state
-        sessionStorage.setItem(sessionFollowKey, originalFollowStatus.toString());
-        
-        setFollowersCount(prev => originalFollowStatus ? prev + 1 : Math.max(0, prev - 1));
-        
-        setFollowError(true);
-        
-        // Display the specific error message from the backend
-        if (error.response && error.response.data && error.response.data.message) {
-          alert(error.response.data.message);
-        } else {
-          alert(error.message || 'Failed to follow/unfollow. Please try again.');
-        }
-        
-        // Always fetch fresh follow data from server to ensure UI is in sync
-        setTimeout(() => fetchFollowStatus(), 500);
-      }
-    } catch (error) {
-      console.error('Error in follow/unfollow process:', error);
-      setFollowError(true);
-      alert('Error processing your request. Please try again.');
-    } finally {
-      setFollowLoading(false);
-    }
-  };
-
-  // Function to fetch follow status directly from the server
-  const fetchFollowStatus = async () => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      const currentUserId = localStorage.getItem('userId');
-      
-      if (!token || !currentUserId || !profileUser?._id) return;
-      
-      const headers = { Authorization: `Bearer ${token}` };
-      
-      console.log('Fetching fresh follow status from server');
-      
-      // Get fresh followers data
-      const followersResponse = await axios.get(
-        `http://localhost:30801/user/${profileUser._id}/followers`,
-        { headers }
-      );
-      
-      let isUserFollowing = false;
-      
-      if (followersResponse.data && followersResponse.data.success) {
-        // Check if current user is in the followers list
-        isUserFollowing = followersResponse.data.followdetails.some(
-          f => (f.follower && f.follower._id === currentUserId) || f._id === currentUserId
-        );
-        
-        console.log('Followers check result:', followersResponse.data.followdetails.length, 'followers');
-        console.log('Current user in followers list:', isUserFollowing);
-      }
-      
-      // Also get fresh profile data as a backup check
-      const profileResponse = await axios.get(
-        `http://localhost:30801/user/profile/${profileUser._id}`,
-        { headers }
-      );
-      
-      if (profileResponse.data && profileResponse.data.exist) {
-        const updatedProfileUser = profileResponse.data.exist;
-        
-        // Update followers count
-        setFollowersCount(updatedProfileUser.followers?.length || 0);
-        
-        // If we didn't find the user in the followers list, try the profile data
-        if (!isUserFollowing && updatedProfileUser.followers) {
-          isUserFollowing = updatedProfileUser.followers.some(
-            f => (f.follower && f.follower._id === currentUserId) || f._id === currentUserId
-          );
-          console.log('Profile followers check result:', isUserFollowing);
-        }
-        
-        // Update following state
-        setIsFollowing(isUserFollowing);
-        
-        // Update session storage with current follow status
-        const sessionFollowKey = `follow_status_${currentUserId}_${profileUser._id}`;
-        sessionStorage.setItem(sessionFollowKey, isUserFollowing.toString());
-        
-        // Also update the profile user in state
-        setProfileUser(updatedProfileUser);
-        
-        console.log('Follow status refreshed from server:', isUserFollowing);
-      }
-      
-      // As a final failsafe, directly check the follow relationship
-      if (!isUserFollowing) {
-        try {
-          const directCheckResponse = await axios.get(
-            `http://localhost:30801/follows/check/${currentUserId}/${profileUser._id}`,
-            { headers }
-          );
-          
-          if (directCheckResponse.data && directCheckResponse.data.isFollowing) {
-            isUserFollowing = true;
-            setIsFollowing(true);
-            
-            // Update session storage
-            const sessionFollowKey = `follow_status_${currentUserId}_${profileUser._id}`;
-            sessionStorage.setItem(sessionFollowKey, 'true');
-            
-            console.log('Direct follow check result:', isUserFollowing);
-          }
-        } catch (directCheckError) {
-          console.log('Direct follow check not available or failed');
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching follow status:', error);
-    }
-  };
-
-  const handleMessage = async () => {
-    try {
-      // If the messaging page already exists, navigate directly to it
-      navigate('/messages', { state: { selectedContact: profileUser } });
-    } catch (error) {
-      console.error('Error starting conversation:', error);
-    }
-  };
-
   // Handle like functionality
   const handleLikePost = async (postId, event) => {
-    if (event) {
-      event.stopPropagation();
-    }
+    if (event) event.stopPropagation();
     
     try {
       const token = localStorage.getItem('accessToken');
       const currentUserId = localStorage.getItem('userId');
       
-      if (!token || !currentUserId) {
-        console.error('User not authenticated');
-        return;
-      }
+      if (!token || !currentUserId) return;
       
-      // First update UI optimistically for better user experience
+      // Optimistic update
       const updatedPosts = posts.map(post => {
         if (post._id === postId) {
           const isLiked = post.likes?.includes(currentUserId);
@@ -837,7 +714,6 @@ const UserProfilePage = () => {
       
       setPosts(updatedPosts);
       
-      // If the post is selected in modal, update it too
       if (selectedPost && selectedPost._id === postId) {
         const isLiked = selectedPost.likes?.includes(currentUserId);
         const newLikeCount = isLiked ? (selectedPost.likeCount || selectedPost.likes?.length || 0) - 1 : (selectedPost.likeCount || selectedPost.likes?.length || 0) + 1;
@@ -851,38 +727,14 @@ const UserProfilePage = () => {
         });
       }
       
-      // Also update saved posts if the liked/unliked post is in saved posts too
-      const updatedSavedPosts = savedPosts.map(post => {
-        if (post._id === postId) {
-          const isLiked = post.likes?.includes(currentUserId);
-          const newLikeCount = isLiked ? (post.likeCount || post.likes?.length || 0) - 1 : (post.likeCount || post.likes?.length || 0) + 1;
-          
-          return {
-            ...post,
-            likes: isLiked 
-              ? (post.likes || []).filter(id => id !== currentUserId) 
-              : [...(post.likes || []), currentUserId],
-            likeCount: newLikeCount
-          };
-        }
-        return post;
-      });
-      
-      setSavedPosts(updatedSavedPosts);
-      
-      // Save the updated posts to localStorage for persistence
-      localStorage.setItem('cachedPosts', JSON.stringify(updatedPosts));
-      
-      // Also store user's liked posts IDs separately for quick reference
+      // Update localStorage
       const likedPostsCache = JSON.parse(localStorage.getItem('userLikedPosts') || '[]');
       const isCurrentlyLiked = updatedPosts.find(p => p._id === postId)?.likes?.includes(currentUserId);
       
       let updatedLikedPosts;
       if (isCurrentlyLiked && !likedPostsCache.includes(postId)) {
-        // Add to liked posts
         updatedLikedPosts = [...likedPostsCache, postId];
       } else if (!isCurrentlyLiked && likedPostsCache.includes(postId)) {
-        // Remove from liked posts
         updatedLikedPosts = likedPostsCache.filter(id => id !== postId);
       } else {
         updatedLikedPosts = likedPostsCache;
@@ -890,70 +742,29 @@ const UserProfilePage = () => {
       
       localStorage.setItem('userLikedPosts', JSON.stringify(updatedLikedPosts));
       
-      // Now make the API call using the correct endpoint
-      const response = await axios.post(
+      // API call
+      await axios.post(
         `http://localhost:30801/user/${currentUserId}/post/userpost/${postId}/like`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
-      console.log('Like post response:', response.data);
-      
-      // Update the like count from server response if available
-      if (response.data && response.data.likes !== undefined) {
-        // Update posts with server like count
-        const updatedPostsWithServerCount = updatedPosts.map(post => {
-          if (post._id === postId) {
-            return {
-              ...post,
-              likeCount: response.data.likes
-            };
-          }
-          return post;
-        });
-        setPosts(updatedPostsWithServerCount);
-        
-        // Update saved posts
-        const updatedSavedPostsWithServerCount = updatedSavedPosts.map(post => {
-          if (post._id === postId) {
-            return {
-              ...post,
-              likeCount: response.data.likes
-            };
-          }
-          return post;
-        });
-        setSavedPosts(updatedSavedPostsWithServerCount);
-        
-        // Update localStorage
-        localStorage.setItem('cachedPosts', JSON.stringify(updatedPostsWithServerCount));
-      }
     } catch (error) {
       console.error('Error liking post:', error);
-      // If API fails, we've already updated the UI optimistically
     }
   };
 
   // Handle save functionality
   const handleSavePost = async (postId, event) => {
-    if (event) {
-      event.stopPropagation();
-    }
+    if (event) event.stopPropagation();
     
     try {
       const token = localStorage.getItem('accessToken');
       const currentUserId = localStorage.getItem('userId');
       
-      // Find the post we're saving/unsaving
-      const postToToggle = posts.find(post => post._id === postId) || 
-                         savedPosts.find(post => post._id === postId);
+      const postToToggle = posts.find(post => post._id === postId);
+      if (!postToToggle) return;
       
-      if (!postToToggle) {
-        console.error('Post not found:', postId);
-        return;
-      }
-      
-      // Update optimistically for better UX
+      // Optimistic update
       const updatedPosts = posts.map(post => {
         if (post._id === postId) {
           return {
@@ -966,7 +777,6 @@ const UserProfilePage = () => {
       
       setPosts(updatedPosts);
       
-      // If this post is open in the modal, update it there too
       if (selectedPost && selectedPost._id === postId) {
         setSelectedPost({
           ...selectedPost,
@@ -974,45 +784,31 @@ const UserProfilePage = () => {
         });
       }
       
-      // Handle changes to the savedPosts array
       const isSaved = !postToToggle.isSaved;
       let updatedSavedPosts = [...savedPosts];
       
       if (isSaved) {
-        // Post is being saved - add to savedPosts if not already there
         if (!savedPosts.some(post => post._id === postId)) {
           updatedSavedPosts = [...savedPosts, { ...postToToggle, isSaved: true }];
         }
       } else {
-        // Post is being unsaved - remove from savedPosts
         updatedSavedPosts = savedPosts.filter(post => post._id !== postId);
       }
       
-      // Update savedPosts state
       setSavedPosts(updatedSavedPosts);
       
-      // Always update the savedPosts list, not just when activeTab is 'saved'
-      // This ensures the changes are reflected immediately when switching tabs
-      
-      // Save the updated posts and savedPosts to localStorage for persistence
-      localStorage.setItem('cachedPosts', JSON.stringify(updatedPosts));
-      localStorage.setItem('cachedSavedPosts', JSON.stringify(updatedSavedPosts));
-      
-      // Use the correct endpoint path from the backend routes
-      const response = await axios.post(
+      // API call
+      await axios.post(
         `http://localhost:30801/user/post/${currentUserId}/${postId}/save`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
-      console.log('Save/unsave post response:', response.data);
     } catch (error) {
       console.error('Error saving/unsaving post:', error);
-      // Keep the optimistic update even if API fails
     }
   };
 
-  // Check if post is liked by current user
+  // Check if post is liked
   const isPostLiked = (post) => {
     if (!post || !post.likes) return false;
     const currentUserId = localStorage.getItem('userId');
@@ -1021,29 +817,22 @@ const UserProfilePage = () => {
 
   // Share post functionality
   const toggleShareMenu = (postId, event) => {
-    if (event) {
-      event.stopPropagation();
-    }
+    if (event) event.stopPropagation();
     
     if (showPostModal) {
       setShareMenuOpen(!shareMenuOpen);
     } else {
       setShowShareModal(true);
       const selectedPostData = posts.find(post => post._id === postId);
-      if (selectedPostData) {
-        setSelectedPost(selectedPostData);
-      }
+      if (selectedPostData) setSelectedPost(selectedPostData);
     }
   };
 
-  // Copy post link to clipboard
+  // Copy post link
   const handleCopyLink = () => {
     try {
-      // Get the proper URL with app's domain and post ID
       const postUrl = `${window.location.origin}/post/${selectedPost._id}`;
       navigator.clipboard.writeText(postUrl);
-      
-      // Close share menu and show feedback
       setShareMenuOpen(false);
       alert("Link copied to clipboard!");
     } catch (error) {
@@ -1052,7 +841,7 @@ const UserProfilePage = () => {
     }
   };
 
-  // Social media share functions
+  // Social media share
   const handleSocialShare = (platform) => {
     let shareUrl = '';
     const postUrl = `${window.location.origin}/post/${selectedPost._id}`;
@@ -1069,14 +858,10 @@ const UserProfilePage = () => {
         shareUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + ' ' + postUrl)}`;
         break;
       default:
-        console.error('Unknown platform:', platform);
         return;
     }
     
-    // Open share dialog
     window.open(shareUrl, '_blank');
-    
-    // Close share menu
     setShareMenuOpen(false);
     setShowShareModal(false);
   };
@@ -1103,6 +888,7 @@ const UserProfilePage = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
+  // Render posts grid
   const renderPostsGrid = (postsArray) => {
     if (!postsArray || postsArray.length === 0) {
       return (
@@ -1119,36 +905,26 @@ const UserProfilePage = () => {
     return (
       <div className="posts-grid">
         {postsArray.map((post) => (
-          <div 
-            key={post._id} 
-            className="post-grid-item"
-          >
+          <div key={post._id} className="post-grid-item">
             <div className="post-grid-content" onClick={() => handlePostClick(post)}>
               {post.video || post.postType === 'reel' ? (
-                // Video/Reel post
-                <>
-                  <div className="reel-post-item">
-                    <img 
-                      src={post.thumbnail || post.image || DEFAULT_VIDEO} 
-                      alt={post.text || 'Reel'} 
-                      className="grid-post-image" 
-                    />
-                    <div className="video-indicator">
-                      <Film size={20} />
-                    </div>
-                  </div>
-                </>
-              ) : post.image ? (
-                // Image post
-                <>
+                <div className="reel-post-item">
                   <img 
-                    src={post.image} 
-                    alt={post.text || 'Post'} 
+                    src={post.thumbnail || post.image || DEFAULT_VIDEO} 
+                    alt={post.text || 'Reel'} 
                     className="grid-post-image" 
                   />
-                </>
+                  <div className="video-indicator">
+                    <Film size={20} />
+                  </div>
+                </div>
+              ) : post.image ? (
+                <img 
+                  src={post.image} 
+                  alt={post.text || 'Post'} 
+                  className="grid-post-image" 
+                />
               ) : (
-                // Text-only post
                 <div className="text-post-grid">
                   <p>{post.text}</p>
                 </div>
@@ -1211,6 +987,7 @@ const UserProfilePage = () => {
     );
   };
 
+  // Handle post click
   const handlePostClick = (post) => {
     setSelectedPost(post);
     setShowPostModal(true);
@@ -1219,6 +996,7 @@ const UserProfilePage = () => {
     setEditedPostText(post.text || '');
   };
 
+  // Close modal
   const handleCloseModal = () => {
     setShowPostModal(false);
     setSelectedPost(null);
@@ -1227,20 +1005,24 @@ const UserProfilePage = () => {
     setShareMenuOpen(false);
   };
 
+  // Handle edit post
   const handleEditPost = (post) => {
     setEditPostMode(true);
     setEditedPostText(post.text || '');
   };
 
+  // Handle delete request
   const handleDeleteRequest = (post) => {
     setSelectedPost(post);
     setShowDeleteConfirm(true);
   };
 
+  // Handle text change
   const handleTextChange = (e) => {
     setEditedPostText(e.target.value);
   };
 
+  // Save post edit
   const handleSavePostEdit = async () => {
     if (!selectedPost || !editedPostText.trim()) return;
     
@@ -1256,7 +1038,6 @@ const UserProfilePage = () => {
       );
       
       if (response.status === 200) {
-        // Update post in local state
         const updatedPosts = posts.map(post => 
           post._id === selectedPost._id 
           ? { ...post, text: editedPostText } 
@@ -1276,6 +1057,7 @@ const UserProfilePage = () => {
     }
   };
 
+  // Delete post
   const handleDeletePost = async () => {
     if (!selectedPost) return;
     
@@ -1290,30 +1072,25 @@ const UserProfilePage = () => {
       );
       
       if (response.status === 200) {
-        // Remove post from local state
         const updatedPosts = posts.filter(post => post._id !== selectedPost._id);
         setPosts(updatedPosts);
         
-        // Also remove comment count for this post
         setPostCommentCounts(prev => {
           const newCounts = { ...prev };
           delete newCounts[selectedPost._id];
           return newCounts;
         });
         
-        // Remove comments for this post
         setPostComments(prev => {
           const newComments = { ...prev };
           delete newComments[selectedPost._id];
           return newComments;
         });
         
-        // Close modal
         setShowPostModal(false);
         setSelectedPost(null);
         setShowDeleteConfirm(false);
         
-        // Update localStorage
         localStorage.setItem('cachedPosts', JSON.stringify(updatedPosts));
         
         alert('Post deleted successfully!');
@@ -1352,24 +1129,13 @@ const UserProfilePage = () => {
               <div className="profile-top">
                 <h2>{profileUser?.name || 'Username'}</h2>
                 <div className="action-buttons">
-                  {isFollowing ? (
-                    <button 
-                      className={`follow-button following ${followError ? 'error' : ''} ${showUnfollowConfirm ? 'confirm-unfollow' : ''}`}
-                      onClick={handleFollow}
-                      disabled={followLoading}
-                    >
-                      {followLoading ? 'Loading...' : 
-                       showUnfollowConfirm ? 'Unfollow?' : 'Following'}
-                    </button>
-                  ) : (
-                    <button 
-                      className={`follow-button ${followError ? 'error' : ''}`}
-                      onClick={handleFollow}
-                      disabled={followLoading}
-                    >
-                      {followLoading ? 'Loading...' : 'Follow'}
-                    </button>
-                  )}
+                  <button 
+                    className={`follow-button ${isFollowing ? 'following' : ''} ${followLoading ? 'loading' : ''}`}
+                    onClick={handleFollowClick}
+                    disabled={followLoading}
+                  >
+                    {followLoading ? '...' : (isFollowing ? 'Following' : 'Follow')}
+                  </button>
                   <button className="message-button" onClick={handleMessage}>
                     Message
                   </button>
@@ -1705,6 +1471,37 @@ const UserProfilePage = () => {
                 disabled={isSubmitting}
               >
                 {isSubmitting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unfollow confirmation dialog */}
+      {showUnfollowDialog && (
+        <div className="modal-overlay" onClick={() => setShowUnfollowDialog(false)}>
+          <div className="unfollow-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="unfollow-dialog-header">
+              <div className="unfollow-user-avatar">
+                <img src={profileUser?.avatar || DEFAULT_AVATAR} alt={profileUser?.name} />
+              </div>
+              <h4>Unfollow @{profileUser?.name}?</h4>
+              <p>Their posts will no longer appear in your home timeline. You can still view their profile.</p>
+            </div>
+            <div className="unfollow-dialog-actions">
+              <button 
+                className="unfollow-confirm-button"
+                onClick={handleUnfollowConfirm}
+                disabled={followLoading}
+              >
+                {followLoading ? 'Unfollowing...' : 'Unfollow'}
+              </button>
+              <button 
+                className="unfollow-cancel-button"
+                onClick={() => setShowUnfollowDialog(false)}
+                disabled={followLoading}
+              >
+                Cancel
               </button>
             </div>
           </div>

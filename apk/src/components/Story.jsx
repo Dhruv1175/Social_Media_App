@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { Plus, X, ChevronLeft, ChevronRight, Send, Heart, Upload, Eye } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Send, Heart, Upload, Eye, Clock, Users, Sparkles } from 'lucide-react';
 import '../styles/Story.css';
 import { useNavigate } from 'react-router-dom';
 import { uploadMediaToFirebase } from '../utils/MediaUploadService';
@@ -42,7 +42,6 @@ const Story = () => {
     };
 
     const fetchData = useCallback(async () => {
-        // Prevent rapid successive calls
         const now = Date.now();
         if (now - lastFetchRef.current < 1000) {
             return;
@@ -72,28 +71,22 @@ const Story = () => {
             const storyFeedResponse = await axios.get(`${BASE_URL}/story/feed`, { headers });
             let feedData = storyFeedResponse.data;
             
-            // Ensure feedData is an array
             if (!Array.isArray(feedData)) {
                 console.error('Feed data is not an array:', feedData);
                 feedData = [];
             }
             
-            console.log('Raw feed data:', feedData);
-            
-            // Sort stories: current user first, then users with unviewed stories, then others
+            // Sort stories
             const sortedStories = feedData.sort((a, b) => {
-                // Put current user first
                 if (a.userId === currentUserData._id) return -1;
                 if (b.userId === currentUserData._id) return 1;
                 
-                // Then sort by unviewed stories
                 const aHasUnviewed = a.stories?.some(s => !s.viewed) || false;
                 const bHasUnviewed = b.stories?.some(s => !s.viewed) || false;
                 
                 if (aHasUnviewed && !bHasUnviewed) return -1;
                 if (!aHasUnviewed && bHasUnviewed) return 1;
                 
-                // Finally by newest story timestamp
                 const aNewest = a.stories?.length > 0 
                     ? Math.max(...a.stories.map(s => new Date(s.timestamp).getTime()))
                     : 0;
@@ -102,17 +95,6 @@ const Story = () => {
                     : 0;
                 
                 return bNewest - aNewest;
-            });
-            
-            console.log('Processed stories count:', sortedStories.length);
-            sortedStories.forEach((story, idx) => {
-                console.log(`Story ${idx}:`, {
-                    userId: story.userId,
-                    username: story.username || 'No username',
-                    storyCount: story.stories?.length || 0,
-                    hasStories: story.stories && story.stories.length > 0,
-                    isCurrentUser: story.userId === currentUserData._id
-                });
             });
             
             setStories(sortedStories);
@@ -127,7 +109,6 @@ const Story = () => {
     useEffect(() => {
         fetchData();
         
-        // Cleanup function
         return () => {
             if (progressIntervalRef.current) {
                 clearInterval(progressIntervalRef.current);
@@ -168,7 +149,6 @@ const Story = () => {
         if (viewingStory && viewingStory.stories && viewingStory.stories[activeStoryIndex]) {
             const currentStory = viewingStory.stories[activeStoryIndex];
             
-            // Mark story as viewed if not already viewed
             if (!currentStory.viewed) {
                 setStories(prevStories => prevStories.map(userStory => {
                     if (userStory.userId === viewingStory.userId) {
@@ -182,18 +162,15 @@ const Story = () => {
                     return userStory;
                 }));
                 
-                // API call to mark as viewed
                 markStoryAsViewedAPI(currentStory.id);
             }
             
-            // Fetch viewers only for the current user's own stories
             if (viewingStory.userId === currentUser?._id) {
                 fetchStoryViewers(currentStory.id);
             } else {
                 setStoryViewers([]);
             }
 
-            // Reset and start progress
             setStoryProgress(0);
             if (progressIntervalRef.current) {
                 clearInterval(progressIntervalRef.current);
@@ -211,11 +188,10 @@ const Story = () => {
                         }, 200);
                         return 100;
                     }
-                    return prev + (100 / (5 * 10)); // 5 seconds per story (10 intervals per second)
+                    return prev + (100 / (5 * 10));
                 });
             }, 100);
         } else {
-            // Cleanup intervals
             if (progressIntervalRef.current) {
                 clearInterval(progressIntervalRef.current);
             }
@@ -255,7 +231,6 @@ const Story = () => {
         setShowViews(false);
         setStoryViewers([]);
         
-        // Cleanup intervals
         if (progressIntervalRef.current) {
             clearInterval(progressIntervalRef.current);
         }
@@ -263,7 +238,6 @@ const Story = () => {
             clearTimeout(storyTimeoutRef.current);
         }
         
-        // Refresh data
         fetchData();
     };
     
@@ -340,14 +314,12 @@ const Story = () => {
         const file = e.target.files[0];
         if (!file) return;
         
-        // Clean up previous preview URL
         if (storyPreview) {
             URL.revokeObjectURL(storyPreview);
         }
 
         setStoryFile(file);
         
-        // Determine file type
         const fileType = file.type.startsWith('video/') ? 'video' 
             : (file.type.startsWith('image/') ? 'image' : null);
         
@@ -360,7 +332,6 @@ const Story = () => {
 
         setCurrentMediaType(fileType);
 
-        // Create preview URL
         const objectUrl = URL.createObjectURL(file);
         setStoryPreview(objectUrl);
     };
@@ -378,7 +349,6 @@ const Story = () => {
         setUploadProgress(0);
         
         try {
-            // Upload to Firebase
             const uploadedMediaUrl = await uploadMediaToFirebase(
                 storyFile, 
                 'stories', 
@@ -395,7 +365,6 @@ const Story = () => {
                 caption: storyCaption,
             };
             
-            // Save to backend
             const response = await axios.post(
                 `${BASE_URL}/story/create`, 
                 storyData, 
@@ -408,13 +377,11 @@ const Story = () => {
 
             setUploadProgress(100);
             
-            // Refresh stories
             await fetchData();
             
             setTimeout(() => {
                 handleCloseCreateStory();
                 
-                // Find and view the new story
                 const currentUserIndex = stories.findIndex(s => s.userId === userId);
                 if (currentUserIndex !== -1) {
                     const updatedUserStories = stories[currentUserIndex];
@@ -441,9 +408,9 @@ const Story = () => {
         const diffInSeconds = Math.floor((now - storyTime) / 1000);
         
         if (diffInSeconds < 60) return 'just now';
-        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-        return `${Math.floor(diffInSeconds / 86400)}d ago`;
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
+        return `${Math.floor(diffInSeconds / 86400)}d`;
     };
 
     const hasUnviewedStories = (userStories) => {
@@ -469,7 +436,7 @@ const Story = () => {
         
         return (
             <>
-                {/* Your Story Button - Always first if user is logged in */}
+                {/* Your Story Button */}
                 {currentUser && (
                     <div 
                         className="story-item create-story" 
@@ -494,7 +461,7 @@ const Story = () => {
                                     }}
                                 />
                                 <div className="story-plus-icon">
-                                    <Plus size={14} color="white" />
+                                    <Plus size={16} />
                                 </div>
                             </div>
                         </div>
@@ -502,10 +469,10 @@ const Story = () => {
                     </div>
                 )}
                 
-                {/* Render other users' stories */}
+                {/* Other users' stories */}
                 {stories
-                    .filter(userStory => userStory.userId !== currentUser?._id) // Exclude current user (already shown)
-                    .filter(userStory => userStory.stories && userStory.stories.length > 0) // Only users with stories
+                    .filter(userStory => userStory.userId !== currentUser?._id)
+                    .filter(userStory => userStory.stories && userStory.stories.length > 0)
                     .map((userStory, index) => {
                         const originalIndex = stories.findIndex(s => s.userId === userStory.userId);
                         
@@ -515,7 +482,7 @@ const Story = () => {
                                 key={userStory.userId || `story-${index}`}
                                 onClick={() => handleViewStory(originalIndex)}
                             >
-                                <div className={`story-avatar-border ${hasUnviewedStories(userStory) ? '' : 'viewed'}`}>
+                                <div className={`story-avatar-border ${hasUnviewedStories(userStory) ? 'unviewed' : 'viewed'}`}>
                                     <div className="story-avatar-container">
                                         <img 
                                             src={userStory.profileImageUrl || DEFAULT_AVATAR} 
@@ -542,27 +509,41 @@ const Story = () => {
     const ViewersPanel = ({ viewers, onClose }) => (
         <div className={`story-viewers-panel ${showViews ? 'visible' : ''}`}>
             <div className="viewers-header">
-                <h3>Viewers ({viewers.length})</h3>
-                <button onClick={onClose}><X size={20} color="#262626" /></button>
+                <div className="viewers-title">
+                    <Users size={20} />
+                    <h3>Story Views ({viewers.length})</h3>
+                </div>
+                <button className="close-viewers-btn" onClick={onClose}>
+                    <X size={20} />
+                </button>
             </div>
             <div className="viewers-list">
                 {viewers.length > 0 ? (
                     viewers.map(viewer => (
                         <div className="viewer-item" key={viewer._id || viewer.id}>
-                            <img 
-                                src={viewer.profileImageUrl || DEFAULT_AVATAR} 
-                                alt={viewer.username} 
-                                className="viewer-avatar"
-                                onError={(e) => { 
-                                    e.target.onerror = null; 
-                                    e.target.src = DEFAULT_AVATAR;
-                                }}
-                            />
-                            <span className="viewer-username">{viewer.username}</span>
+                            <div className="viewer-avatar-container">
+                                <img 
+                                    src={viewer.profileImageUrl || DEFAULT_AVATAR} 
+                                    alt={viewer.username} 
+                                    className="viewer-avatar"
+                                    onError={(e) => { 
+                                        e.target.onerror = null; 
+                                        e.target.src = DEFAULT_AVATAR;
+                                    }}
+                                />
+                            </div>
+                            <div className="viewer-info">
+                                <span className="viewer-username">{viewer.username}</span>
+                                <span className="viewer-name">{viewer.name || ''}</span>
+                            </div>
                         </div>
                     ))
                 ) : (
-                    <p className="no-viewers">No viewers yet.</p>
+                    <div className="no-viewers">
+                        <Eye size={48} />
+                        <p>No views yet</p>
+                        <span>Be the first to view this story</span>
+                    </div>
                 )}
             </div>
         </div>
@@ -580,14 +561,6 @@ const Story = () => {
                 <div className="story-modal">
                     <div className="story-view-container">
                         
-                        {/* Story Navigation Click Areas */}
-                        <button className="story-nav prev" onClick={handlePrevStory}>
-                            <ChevronLeft size={24} color="white" />
-                        </button>
-                        <button className="story-nav next" onClick={handleNextStory}>
-                            <ChevronRight size={24} color="white" />
-                        </button>
-
                         {/* Progress Bars */}
                         <div className="story-progress-container">
                             {viewingStory.stories.map((story, index) => (
@@ -616,13 +589,15 @@ const Story = () => {
                                         }}
                                     />
                                 </div>
-                                <span className="story-user-name">{viewingStory.username || 'User'}</span>
-                                <span className="story-timestamp">
-                                    {formatTimeAgo(currentStory.timestamp)}
-                                </span>
+                                <div className="story-user-details">
+                                    <span className="story-user-name">{viewingStory.username || 'User'}</span>
+                                    <span className="story-timestamp">
+                                        <Clock size={12} />
+                                        {formatTimeAgo(currentStory.timestamp)}
+                                    </span>
+                                </div>
                             </div>
                             <div className="story-header-actions">
-                                {/* Add New Story button for current user */}
                                 {isOwnerViewing && (
                                     <button 
                                         className="story-add-btn" 
@@ -632,11 +607,11 @@ const Story = () => {
                                         }}
                                         title="Add to your story"
                                     >
-                                        <Plus size={20} color="white" />
+                                        <Plus size={20} />
                                     </button>
                                 )}
                                 <button className="story-close-btn" onClick={handleCloseStory}>
-                                    <X size={24} color="white" />
+                                    <X size={20} />
                                 </button>
                             </div>
                         </div>
@@ -671,19 +646,17 @@ const Story = () => {
                             )}
                         </div>
                         
-                        {/* Story Actions / Footer */}
+                        {/* Story Actions */}
                         <div className="story-actions">
                             {isOwnerViewing ? (
-                                // Story Owner View
                                 <button 
                                     className="story-views-toggle" 
                                     onClick={() => setShowViews(prev => !prev)}
                                 >
-                                    <Eye size={20} color="white" />
-                                    <span>{storyViewers.length} Views</span>
+                                    <Eye size={20} />
+                                    <span>{storyViewers.length}</span>
                                 </button>
                             ) : (
-                                // Viewer/Friend View
                                 <>
                                     <div className="story-reply-box">
                                         <input 
@@ -691,19 +664,25 @@ const Story = () => {
                                             placeholder={`Reply to ${viewingStory.username || 'this story'}...`} 
                                         />
                                         <button className="story-send-btn">
-                                            <Send size={20} color="white" />
+                                            <Send size={20} />
                                         </button>
                                     </div>
-                                    <div className="story-reactions">
-                                        <button className="story-reaction-btn">
-                                            <Heart size={24} color="white" />
-                                        </button>
-                                    </div>
+                                    <button className="story-reaction-btn">
+                                        <Heart size={24} />
+                                    </button>
                                 </>
                             )}
                         </div>
                         
-                        {/* Viewers Panel (Overlay) */}
+                        {/* Navigation Arrows */}
+                        <button className="story-nav prev" onClick={handlePrevStory}>
+                            <ChevronLeft size={24} />
+                        </button>
+                        <button className="story-nav next" onClick={handleNextStory}>
+                            <ChevronRight size={24} />
+                        </button>
+                        
+                        {/* Viewers Panel */}
                         {isOwnerViewing && (
                             <ViewersPanel 
                                 viewers={storyViewers} 
@@ -720,9 +699,16 @@ const Story = () => {
                 <div className="story-creation-modal">
                     <div className="story-creation-container">
                         <div className="story-creation-header">
-                            <h3>Create Story</h3>
-                            <button onClick={handleCloseCreateStory} disabled={isUploading}>
-                                <X size={24} color="#262626" />
+                            <div className="header-content">
+                                <Sparkles size={20} />
+                                <h3>Create New Story</h3>
+                            </div>
+                            <button 
+                                className="close-creation-btn" 
+                                onClick={handleCloseCreateStory} 
+                                disabled={isUploading}
+                            >
+                                <X size={24} />
                             </button>
                         </div>
                         
@@ -738,11 +724,21 @@ const Story = () => {
                             
                             {!storyFile ? (
                                 <div className="story-upload-placeholder">
-                                    <button className="upload-btn" onClick={handleFileSelect} disabled={isUploading}>
-                                        <Upload size={48} color="#0095f6" />
-                                        <span>Upload photo or video</span>
+                                    <div className="upload-icon-container">
+                                        <Upload size={60} />
+                                    </div>
+                                    <button 
+                                        className="upload-btn" 
+                                        onClick={handleFileSelect} 
+                                        disabled={isUploading}
+                                    >
+                                        Select Photo or Video
                                     </button>
-                                    <p className="upload-hint">Supported formats: JPG, PNG, MP4, MOV</p>
+                                    <p className="upload-hint">Drag & drop or click to upload</p>
+                                    <div className="format-hint">
+                                        <span>JPG, PNG, GIF, MP4, MOV</span>
+                                        <span>Max 50MB</span>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="creation-preview-box">
@@ -763,14 +759,18 @@ const Story = () => {
                                             />
                                         )}
                                         <div className="reupload-overlay">
-                                            <Upload size={24} color="white" />
-                                            <span>Change Media</span>
+                                            <Upload size={24} />
+                                            <span>Change media</span>
                                         </div>
                                     </div>
                                     
                                     <div className="story-caption-input">
+                                        <div className="caption-header">
+                                            <span>Add a caption</span>
+                                            <span>{storyCaption.length}/2200</span>
+                                        </div>
                                         <textarea 
-                                            placeholder="Write a caption..." 
+                                            placeholder="Share what's on your mind..." 
                                             value={storyCaption}
                                             onChange={(e) => setStoryCaption(e.target.value)}
                                             maxLength={2200}
@@ -794,12 +794,21 @@ const Story = () => {
                                 onClick={handleCreateStory}
                                 disabled={!storyFile || isUploading}
                             >
-                                {isUploading ? `Uploading ${Math.round(uploadProgress)}%...` : 'Share to Story'}
+                                {isUploading ? (
+                                    <>
+                                        <span className="upload-spinner"></span>
+                                        {Math.round(uploadProgress)}%
+                                    </>
+                                ) : 'Share Story'}
                             </button>
                         </div>
                         
                         {isUploading && uploadProgress > 0 && (
                             <div className="story-upload-progress">
+                                <div className="progress-label">
+                                    <span>Uploading...</span>
+                                    <span>{Math.round(uploadProgress)}%</span>
+                                </div>
                                 <div 
                                     className="story-upload-progress-bar" 
                                     style={{ width: `${uploadProgress}%` }}

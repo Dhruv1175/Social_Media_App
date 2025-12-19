@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, Edit, Check, MoreHorizontal, Trash2, X, Send, User } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Edit, Check, MoreHorizontal, Trash2, X, Send, User, Heart as HeartOutline, MoreVertical, Smile, Image as ImageIcon } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import '../styles/Posts.css';
 
-// Component used to display posts in the Home/Feed page
 const Posts = ({ posts: initialPosts, user }) => {
   const [posts, setPosts] = useState([]);
   const [editingPostId, setEditingPostId] = useState(null);
@@ -13,15 +12,20 @@ const Posts = ({ posts: initialPosts, user }) => {
   const [showOptions, setShowOptions] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   
-  // New comment states
+  // Comment states
   const [showComments, setShowComments] = useState({});
-  const [postComments, setPostComments] = useState({}); // { postId: [comments] }
-  const [newCommentText, setNewCommentText] = useState({}); // { postId: text }
+  const [postComments, setPostComments] = useState({});
+  const [newCommentText, setNewCommentText] = useState({});
   const [isLoadingComments, setIsLoadingComments] = useState({});
-  const [commentUsers, setCommentUsers] = useState({}); // Cache for user data
+  const [commentUsers, setCommentUsers] = useState({});
+  const [activeCommentMenu, setActiveCommentMenu] = useState(null);
+  const [replyingTo, setReplyingTo] = useState({});
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editedCommentText, setEditedCommentText] = useState({});
   
   const optionsRef = useRef(null);
   const commentsRef = useRef({});
+  const commentMenuRef = useRef(null);
   const navigate = useNavigate();
 
   const currentUserId = user?._id || localStorage.getItem('userId');
@@ -32,27 +36,22 @@ const Posts = ({ posts: initialPosts, user }) => {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  // --- Core Initialization Effect (Ensures posts array is usable and safe) ---
+  // --- Core Initialization Effect ---
   useEffect(() => {
     if (initialPosts && initialPosts.length > 0) {
       const userLikedPostsCache = JSON.parse(localStorage.getItem('userLikedPosts') || '[]');
       const savedPostsMap = JSON.parse(localStorage.getItem('savedPosts') || '{}');
       
       const postsWithSyncedState = initialPosts.map(post => {
-        // Ensure likesArray is always an array
-        let likesArray = Array.isArray(post.likes) 
-            ? post.likes 
-            : []; 
-
-        // Ensure user ID is present/absent in the likes array based on global cache
+        let likesArray = Array.isArray(post.likes) ? post.likes : [];
         const isLikedGlobally = userLikedPostsCache.includes(post._id);
+        
         if (isLikedGlobally && !likesArray.includes(currentUserId)) {
           likesArray.push(currentUserId);
         } else if (!isLikedGlobally && likesArray.includes(currentUserId)) {
           likesArray = likesArray.filter(id => id !== currentUserId);
         }
 
-        // isSaved check relies on the synced map (Home.jsx updates this map)
         const isSaved = savedPostsMap[post._id] === true;
         
         return {
@@ -65,10 +64,9 @@ const Posts = ({ posts: initialPosts, user }) => {
       
       setPosts(postsWithSyncedState);
     } else {
-        setPosts([]);
+      setPosts([]);
     }
   }, [initialPosts, currentUserId]);
-
 
   // Helper function to check if the user liked the post
   const isPostLiked = (post) => {
@@ -78,11 +76,10 @@ const Posts = ({ posts: initialPosts, user }) => {
 
   // --- COMMENT FUNCTIONS ---
 
-  // Fetch user data for a comment if not already cached
+  // Fetch user data for a comment
   const fetchCommentUser = async (userId) => {
     if (!userId) return null;
     
-    // Check cache first
     if (commentUsers[userId]) {
       return commentUsers[userId];
     }
@@ -93,14 +90,14 @@ const Posts = ({ posts: initialPosts, user }) => {
         { headers: authHeaders() }
       );
       
-      if (response.data.success && response.data.data) {
+      if (response.data.success && response.data.exist) {
         const userData = {
-          _id: response.data.data._id,
-          name: response.data.data.name || 'User',
-          avatar: response.data.data.avatar || null
+          _id: response.data.exist._id,
+          name: response.data.exist.name || 'User',
+          avatar: response.data.exist.avatar || null,
+          username: response.data.exist.username || response.data.exist.name || 'User'
         };
         
-        // Update cache
         setCommentUsers(prev => ({
           ...prev,
           [userId]: userData
@@ -114,7 +111,7 @@ const Posts = ({ posts: initialPosts, user }) => {
     return null;
   };
 
-  // Toggle comments visibility for a post
+  // Toggle comments visibility
   const toggleComments = async (postId, e) => {
     if (e) {
       e.preventDefault();
@@ -127,7 +124,6 @@ const Posts = ({ posts: initialPosts, user }) => {
       [postId]: newShowState
     }));
 
-    // If showing comments and not loaded yet, fetch them
     if (newShowState && !postComments[postId]) {
       await fetchComments(postId);
     }
@@ -145,29 +141,15 @@ const Posts = ({ posts: initialPosts, user }) => {
         { headers: authHeaders() }
       );
       
-      console.log('Comments API response:', response.data);
-      console.log('Comments data:', response.data.comdata);
-      
       if (response.data.success && response.data.comdata) {
-        // Debug each comment
-        response.data.comdata.forEach((comment, index) => {
-          console.log(`Comment ${index}:`, comment);
-          console.log(`Comment ${index} user:`, comment.user);
-        });
-        
-        // First, collect all unique user IDs from comments
         const userIds = new Set();
         response.data.comdata.forEach(comment => {
-          if (comment.user && typeof comment.user === 'string') {
+          if (comment.user) {
             userIds.add(comment.user);
-          } else if (comment.user && comment.user._id) {
-            userIds.add(comment.user._id);
           }
         });
         
-        // Fetch all user data in parallel
         const userFetchPromises = Array.from(userIds).map(userId => {
-          // Check cache first
           if (commentUsers[userId]) {
             return Promise.resolve({ userId, userData: commentUsers[userId] });
           }
@@ -175,8 +157,6 @@ const Posts = ({ posts: initialPosts, user }) => {
         });
         
         const userResults = await Promise.all(userFetchPromises);
-        
-        // Create a map of user data
         const userMap = {};
         userResults.forEach(({ userId, userData }) => {
           if (userData) {
@@ -184,47 +164,36 @@ const Posts = ({ posts: initialPosts, user }) => {
           }
         });
         
-        // Update the user cache
         setCommentUsers(prev => ({
           ...prev,
           ...userMap
         }));
         
-        // Process comments with proper user data
-        const processedComments = response.data.comdata.map(comment => {
-          let userData = null;
-          
-          // Get user ID from comment
-          let userId = null;
-          if (typeof comment.user === 'string') {
-            userId = comment.user;
-          } else if (comment.user && comment.user._id) {
-            userId = comment.user._id;
-          }
-          
-          // Get user data from map
-          if (userId && userMap[userId]) {
-            userData = userMap[userId];
-          } else if (comment.user && typeof comment.user === 'object' && comment.user.name) {
-            // If user data is already embedded in the comment
-            userData = comment.user;
-          } else {
-            // Fallback to minimal user object
-            userData = { 
-              _id: userId || 'unknown', 
-              name: 'User', 
-              avatar: null 
+        const processedComments = await Promise.all(
+          response.data.comdata.map(async (comment) => {
+            let userData = null;
+            const userId = comment.user;
+            
+            if (userId && userMap[userId]) {
+              userData = userMap[userId];
+            } else if (userId) {
+              userData = await fetchCommentUser(userId);
+            }
+            
+            return {
+              ...comment,
+              user: userData || { 
+                _id: userId || 'unknown', 
+                name: 'User', 
+                username: 'user',
+                avatar: null 
+              },
+              createdAt: comment.createdAt || comment.date || new Date().toISOString(),
+              likes: comment.likes || [],
+              isLiked: comment.likes?.includes(currentUserId) || false
             };
-          }
-          
-          return {
-            ...comment,
-            user: userData,
-            createdAt: comment.createdAt || comment.date || new Date().toISOString()
-          };
-        });
-        
-        console.log('Processed comments:', processedComments);
+          })
+        );
         
         setPostComments(prev => ({
           ...prev,
@@ -248,7 +217,6 @@ const Posts = ({ posts: initialPosts, user }) => {
     const commentText = newCommentText[postId]?.trim();
     if (!commentText || !currentUserId) return;
 
-    // Optimistic update
     const tempCommentId = `temp_${Date.now()}`;
     const optimisticComment = {
       _id: tempCommentId,
@@ -256,9 +224,12 @@ const Posts = ({ posts: initialPosts, user }) => {
       user: {
         _id: currentUserId,
         name: user?.name || 'You',
+        username: user?.username || user?.name || 'you',
         avatar: user?.avatar
       },
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      likes: [],
+      isLiked: false
     };
 
     setPostComments(prev => ({
@@ -266,8 +237,8 @@ const Posts = ({ posts: initialPosts, user }) => {
       [postId]: [optimisticComment, ...(prev[postId] || [])]
     }));
 
-    // Clear input
     setNewCommentText(prev => ({ ...prev, [postId]: '' }));
+    setReplyingTo(prev => ({ ...prev, [postId]: null }));
 
     try {
       const response = await axios.post(
@@ -277,25 +248,20 @@ const Posts = ({ posts: initialPosts, user }) => {
       );
 
       if (response.data.success) {
-        // Refetch comments to get the actual comment with proper ID
         await fetchComments(postId);
       }
     } catch (error) {
       console.error('Error posting comment:', error);
-      // Remove optimistic comment on error
       setPostComments(prev => ({
         ...prev,
         [postId]: (prev[postId] || []).filter(comment => comment._id !== tempCommentId)
       }));
-      // Restore the text
       setNewCommentText(prev => ({ ...prev, [postId]: commentText }));
     }
   };
 
   // Delete a comment
   const deleteComment = async (commentId, postId) => {
-    if (!window.confirm('Are you sure you want to delete this comment?')) return;
-
     try {
       const response = await axios.delete(
         `http://localhost:30801/user/post/userpost/comment/${commentId}/delete`,
@@ -303,7 +269,6 @@ const Posts = ({ posts: initialPosts, user }) => {
       );
 
       if (response.data.success) {
-        // Remove comment from state
         setPostComments(prev => ({
           ...prev,
           [postId]: (prev[postId] || []).filter(comment => comment._id !== commentId)
@@ -311,6 +276,36 @@ const Posts = ({ posts: initialPosts, user }) => {
       }
     } catch (error) {
       console.error('Error deleting comment:', error);
+    }
+  };
+
+  // Toggle comment like
+  const toggleCommentLike = async (commentId, postId) => {
+    try {
+      const response = await axios.post(
+        `http://localhost:30801/user/${currentUserId}/post/userpost/${postId}/comment/${commentId}/like`,
+        null,
+        { headers: authHeaders() }
+      );
+
+      if (response.data.success) {
+        setPostComments(prev => ({
+          ...prev,
+          [postId]: (prev[postId] || []).map(comment => 
+            comment._id === commentId 
+              ? { 
+                  ...comment, 
+                  isLiked: !comment.isLiked,
+                  likes: comment.isLiked 
+                    ? comment.likes.filter(id => id !== currentUserId)
+                    : [...comment.likes, currentUserId]
+                } 
+              : comment
+          )
+        }));
+      }
+    } catch (error) {
+      console.error('Error toggling comment like:', error);
     }
   };
 
@@ -326,30 +321,41 @@ const Posts = ({ posts: initialPosts, user }) => {
       );
 
       if (response.data.success) {
-        // Update comment in state
         setPostComments(prev => ({
           ...prev,
           [postId]: (prev[postId] || []).map(comment => 
             comment._id === commentId ? { ...comment, text: newText } : comment
           )
         }));
+        setEditingCommentId(null);
+        setEditedCommentText(prev => ({ ...prev, [commentId]: '' }));
       }
     } catch (error) {
       console.error('Error updating comment:', error);
     }
   };
 
-  // Format date safely
+  // Start editing a comment
+  const startEditingComment = (commentId, currentText) => {
+    setEditingCommentId(commentId);
+    setEditedCommentText(prev => ({ ...prev, [commentId]: currentText }));
+    setActiveCommentMenu(null);
+  };
+
+  // Cancel editing a comment
+  const cancelEditingComment = () => {
+    setEditingCommentId(null);
+    setEditedCommentText(prev => ({ ...prev, [editingCommentId]: '' }));
+  };
+
+  // Format date
   const formatCommentDate = (dateString) => {
     if (!dateString) return '';
     
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        return '';
-      }
+      if (isNaN(date.getTime())) return '';
       
-      // Show relative time for recent comments
       const now = new Date();
       const diffMs = now - date;
       const diffMins = Math.floor(diffMs / 60000);
@@ -367,47 +373,37 @@ const Posts = ({ posts: initialPosts, user }) => {
     }
   };
 
-  // Get user name safely
-  const getCommentUserName = (comment) => {
-    if (!comment.user) return 'User';
-    
-    if (typeof comment.user === 'string') {
-      return 'User';
-    }
-    
-    return comment.user.name || 'User';
-  };
-
-  // Get user ID safely
-  const getCommentUserId = (comment) => {
-    if (!comment.user) return null;
-    
-    if (typeof comment.user === 'string') {
-      return comment.user;
-    }
-    
-    return comment.user._id;
-  };
-
-  // Get user avatar safely
-  const getCommentUserAvatar = (comment) => {
-    if (!comment.user || typeof comment.user === 'string') {
-      return null;
-    }
-    
-    return comment.user.avatar || null;
-  };
-
   // Handle comment user click
   const handleCommentUserClick = (comment, e) => {
     e.stopPropagation();
-    const userId = getCommentUserId(comment);
+    const userId = comment.user?._id || comment.user;
     if (userId) {
       navigate(`/profile/${userId}`);
     }
   };
 
-  // Scroll to bottom of comments when they open
+  // Toggle comment menu
+  const toggleCommentMenu = (commentId, e) => {
+    if (e) e.stopPropagation();
+    setActiveCommentMenu(activeCommentMenu === commentId ? null : commentId);
+  };
+
+  // Close menus on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (optionsRef.current && !optionsRef.current.contains(e.target)) {
+        setShowOptions(null);
+      }
+      if (commentMenuRef.current && !commentMenuRef.current.contains(e.target)) {
+        setActiveCommentMenu(null);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Scroll to bottom of comments
   useEffect(() => {
     Object.keys(showComments).forEach(postId => {
       if (showComments[postId] && commentsRef.current[postId]) {
@@ -431,7 +427,6 @@ const Posts = ({ posts: initialPosts, user }) => {
     const currentlyLiked = isPostLiked(currentPost);
     const newIsLiked = !currentlyLiked;
 
-    // 1. Optimistic Update 
     setPosts(prevPosts =>
       prevPosts.map(post => {
         if (post._id === postId) {
@@ -453,72 +448,24 @@ const Posts = ({ posts: initialPosts, user }) => {
       })
     );
     
-    // 2. Update LocalStorage Caches (Syncs all relevant keys)
-    try {
-      const likedPostsCache = JSON.parse(localStorage.getItem('userLikedPosts') || '[]');
-      let updatedLikedPostsCache;
-      
-      if (newIsLiked) {
-        updatedLikedPostsCache = [...new Set([...likedPostsCache, postId])];
-      } else {
-        updatedLikedPostsCache = likedPostsCache.filter(id => id !== postId);
-      }
-      localStorage.setItem('userLikedPosts', JSON.stringify(updatedLikedPostsCache));
-      
-      const cachedFeedPosts = JSON.parse(localStorage.getItem('cachedFeedPosts') || '[]');
-      const updatedFeedPosts = cachedFeedPosts.map(post => {
-        if (post._id === postId) {
-          return { ...post, isLiked: newIsLiked };
-        }
-        return post;
-      });
-      localStorage.setItem('cachedFeedPosts', JSON.stringify(updatedFeedPosts));
-      
-      const cachedProfilePosts = JSON.parse(localStorage.getItem('cachedPosts') || '[]');
-      if (cachedProfilePosts.length > 0) {
-        const updatedProfilePosts = cachedProfilePosts.map(post => {
-          if (post._id === postId) {
-            let updatedLikes = Array.isArray(post.likes) ? [...post.likes] : [];
-            if (newIsLiked) {
-                if (!updatedLikes.includes(currentUserId)) updatedLikes.push(currentUserId);
-            } else {
-                updatedLikes = updatedLikes.filter(id => id !== currentUserId);
-            }
-            return { ...post, likes: updatedLikes };
-          }
-          return post;
-        });
-        localStorage.setItem('cachedPosts', JSON.stringify(updatedProfilePosts));
-      }
-      
-    } catch (localStorageError) {
-      console.error('Error updating localStorage:', localStorageError);
-    }
-      
-    // 3. API Call (Server update)
     try {
       const endpoint = `http://localhost:30801/user/${currentUserId}/post/userpost/${postId}/like`;
       await axios.post(endpoint, null, { headers: authHeaders() });
-      console.log('Like update synced with server');
     } catch (error) {
-      console.error('Warning: Like update failed on server but UI was updated:', error);
+      console.error('Warning: Like update failed on server:', error);
     }
   };
 
-  // --- SAVE TOGGLE (Optimistic Update and Cache Synchronization) ---
+  // --- SAVE TOGGLE ---
   const toggleSave = async (e, postId) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!currentUserId) {
-      console.error('User ID not found.');
-      return;
-    }
+    if (!currentUserId) return;
     
     const currentPost = posts.find(p => p._id === postId);
     const newIsSaved = !currentPost?.isSaved;
 
-    // 1. Optimistic Update (Toggle isSaved flag)
     setPosts(prevPosts =>
       prevPosts.map(post => {
         if (post._id === postId) {
@@ -528,78 +475,30 @@ const Posts = ({ posts: initialPosts, user }) => {
       })
     );
 
-    // 2. Update LocalStorage Caches (Syncs all relevant keys)
     try {
-      const savedPostsMap = JSON.parse(localStorage.getItem('savedPosts') || '{}');
-      savedPostsMap[postId] = newIsSaved;
-      localStorage.setItem('savedPosts', JSON.stringify(savedPostsMap));
-
-      const cachedFeedPosts = JSON.parse(localStorage.getItem('cachedFeedPosts') || '[]');
-      const updatedFeedPosts = cachedFeedPosts.map(post => {
-        if (post._id === postId) {
-          return { ...post, isSaved: newIsSaved };
-        }
-        return post;
-      });
-      localStorage.setItem('cachedFeedPosts', JSON.stringify(updatedFeedPosts));
-      
-      const cachedProfilePosts = JSON.parse(localStorage.getItem('cachedPosts') || '[]');
-      if (cachedProfilePosts.length > 0) {
-        const updatedProfilePosts = cachedProfilePosts.map(post => {
-          if (post._id === postId) {
-            return { ...post, isSaved: newIsSaved };
-          }
-          return post;
-        });
-        localStorage.setItem('cachedPosts', JSON.stringify(updatedProfilePosts));
-      }
-      
-    } catch (localStorageError) {
-      console.error('Error updating localStorage:', localStorageError);
-    }
-
-    // 3. API Call (Server update)
-    try {
-      let response;
       let endpoint;
       
       if (newIsSaved) {
-        // Use POST for saving
         endpoint = `http://localhost:30801/user/post/${currentUserId}/${postId}/save`;
-        response = await axios.post(endpoint, null, { headers: authHeaders() });
+        await axios.post(endpoint, null, { headers: authHeaders() });
       } else {
-        // Use DELETE for unsaving (as per backend route definition)
         endpoint = `http://localhost:30801/user/post/${currentUserId}/${postId}/unsave`;
-        response = await axios.delete(endpoint, { headers: authHeaders() });
+        await axios.delete(endpoint, { headers: authHeaders() });
       }
-      
-      console.log('Save update synced with server:', response.data);
     } catch (error) {
-        console.error('Warning: Save update failed on server:', error);
-        
-        // --- Reversion Logic ---
-        // Revert the optimistic change to reflect server state if the API fails
-        setPosts(prevPosts =>
-            prevPosts.map(post => {
-                if (post._id === postId) {
-                    return { ...post, isSaved: !newIsSaved };
-                }
-                return post;
-            })
-        );
-        // Revert local storage map
-        const savedPostsMap = JSON.parse(localStorage.getItem('savedPosts') || '{}');
-        savedPostsMap[postId] = !newIsSaved;
-        localStorage.setItem('savedPosts', JSON.stringify(savedPostsMap));
-        
-        // Show alert only if the error wasn't a non-critical one (like 404 on unsave)
-        if (error.response?.status !== 404 || newIsSaved) {
-            alert('Failed to update save status on the server. Please try again.');
-        }
+      console.error('Save update failed:', error);
+      setPosts(prevPosts =>
+        prevPosts.map(post => {
+          if (post._id === postId) {
+            return { ...post, isSaved: !newIsSaved };
+          }
+          return post;
+        })
+      );
     }
   };
 
-  // --- NAVIGATION (Keep all original navigation logic) ---
+  // Navigation
   const handleUserProfileClick = (userId, e) => {
     e.stopPropagation();
     if (userId) {
@@ -608,46 +507,17 @@ const Posts = ({ posts: initialPosts, user }) => {
   };
 
   const togglePostOptions = (postId, e) => {
-    if (e) {
-      e.stopPropagation();
-    }
-    if (showOptions === postId) {
-      setShowOptions(null);
-    } else {
-      setShowOptions(postId);
-      setShowDeleteConfirm(null); // Close any open delete confirmation
-    }
+    if (e) e.stopPropagation();
+    setShowOptions(showOptions === postId ? null : postId);
+    setShowDeleteConfirm(null);
   };
 
   const getLikesDisplay = (post) => {
     const likesCount = Array.isArray(post.likes) ? post.likes.length : post.likes || 0;
-    
-    if (likesCount === 0) {
-      return 'Be the first to like this';
-    } else if (likesCount === 1) {
-      return '1 like';
-    } else {
-      return `${likesCount} likes`;
-    }
+    if (likesCount === 0) return 'Be the first to like this';
+    if (likesCount === 1) return '1 like';
+    return `${likesCount} likes`;
   };
-
-  // Close any open menus when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (optionsRef.current && !optionsRef.current.contains(e.target)) {
-        setShowOptions(null);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-  
-  // --- Placeholder for other functions (e.g., toggleEditPost, handleDeletePost) ---
-  const toggleEditPost = () => {};
-  const handleSavePost = () => {};
-  const toggleDeleteConfirm = () => {};
-  const handleDeletePost = () => {};
 
   // --- RENDER ---
   return (
@@ -658,7 +528,6 @@ const Posts = ({ posts: initialPosts, user }) => {
             {/* Post Header */}
             <header className="post-header">
               <div className="user-info" onClick={(e) => handleUserProfileClick(post.user?._id, e)}>
-                {/* Avatar logic */}
                 <div className="avatar-container">
                   <img
                     src={post.user?.avatar || user?.avatar || '/default-avatar.png'}
@@ -672,7 +541,6 @@ const Posts = ({ posts: initialPosts, user }) => {
                 </div>
               </div>
               
-              {/* Post Options (Edit/Delete) */}
               {post.user?._id === currentUserId && ( 
                 <div className="post-actions-top" ref={optionsRef}>
                   <button
@@ -683,8 +551,6 @@ const Posts = ({ posts: initialPosts, user }) => {
                   >
                     <MoreHorizontal size={20} />
                   </button>
-                  
-                  {/* Options dropdown JSX omitted for brevity */}
                 </div>
               )}
             </header>
@@ -706,14 +572,14 @@ const Posts = ({ posts: initialPosts, user }) => {
               <div className="left-actions">
                 <button
                   onClick={(e) => toggleLike(e, post._id)}
-                  className={`action-button ${isPostLiked(post) ? 'liked' : ''}`} 
+                  className={`action-button ${isPostLiked(post) ? 'liked' : ''}`}
                   aria-label={isPostLiked(post) ? 'Unlike' : 'Like'}
                 >
                   <Heart size={24} fill={isPostLiked(post) ? "#ed4956" : "none"} />
                 </button>
                 <button 
                   onClick={(e) => toggleComments(post._id, e)}
-                  className={`action-button ${showComments[post._id] ? 'active' : ''}`} 
+                  className={`action-button ${showComments[post._id] ? 'active' : ''}`}
                   aria-label="Comment"
                 >
                   <MessageCircle size={24} />
@@ -743,134 +609,253 @@ const Posts = ({ posts: initialPosts, user }) => {
               </div>
             )}
 
-            {/* Comments Section */}
+            {/* View Comments Button */}
+            {!showComments[post._id] && postComments[post._id]?.length > 0 && (
+              <button 
+                className="view-comments-btn"
+                onClick={(e) => toggleComments(post._id, e)}
+              >
+                View all {postComments[post._id]?.length} comments
+              </button>
+            )}
+
+            {/* Modern Comments Section */}
             {showComments[post._id] && (
-              <div className="comments-section">
-                <div className="comments-header">
-                  <h4>Comments</h4>
+              <div className="modern-comments-section">
+                <div className="modern-comments-header">
+                  <h3>Comments ({postComments[post._id]?.length || 0})</h3>
                   <button 
-                    className="close-comments-btn"
+                    className="modern-close-comments"
                     onClick={(e) => toggleComments(post._id, e)}
                   >
-                    <X size={16} />
+                    <X size={20} />
                   </button>
                 </div>
-                
+
+                {/* Comments List */}
                 <div 
-                  className="comments-list"
+                  className="modern-comments-list"
                   ref={el => commentsRef.current[post._id] = el}
                 >
                   {isLoadingComments[post._id] ? (
-                    <div className="loading-comments">Loading comments...</div>
+                    <div className="modern-loading-comments">
+                      <div className="loading-spinner"></div>
+                      <span>Loading comments...</span>
+                    </div>
                   ) : postComments[post._id]?.length > 0 ? (
                     postComments[post._id].map(comment => {
-                      const userName = getCommentUserName(comment);
-                      const userId = getCommentUserId(comment);
-                      const userAvatar = getCommentUserAvatar(comment);
+                      const userName = comment.user?.name || 'User';
+                      const userId = comment.user?._id || comment.user;
+                      const userAvatar = comment.user?.avatar || null;
                       const commentDate = formatCommentDate(comment.createdAt);
+                      const isCommentByCurrentUser = userId === currentUserId;
                       
                       return (
-                        <div key={comment._id} className="comment-item">
+                        <div key={comment._id} className="modern-comment-item">
                           <div 
-                            className="comment-avatar"
+                            className="modern-comment-avatar"
                             onClick={(e) => handleCommentUserClick(comment, e)}
                           >
                             {userAvatar ? (
                               <img 
                                 src={userAvatar} 
-                                alt={userName} 
-                                className="comment-user-avatar"
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  e.target.parentElement.innerHTML = '<div class="avatar-fallback"><User size={16} /></div>';
-                                }}
+                                alt={userName}
+                                className="modern-comment-user-avatar"
                               />
                             ) : (
-                              <div className="avatar-fallback">
+                              <div className="modern-avatar-fallback">
                                 <User size={16} />
                               </div>
                             )}
                           </div>
-                          <div className="comment-content">
-                            <div className="comment-header">
-                              <span 
-                                className="comment-username"
-                                onClick={(e) => handleCommentUserClick(comment, e)}
-                                style={{ cursor: userId ? 'pointer' : 'default' }}
-                              >
-                                {userName}
-                              </span>
-                              {commentDate && (
-                                <span className="comment-time">
+                          
+                          <div className="modern-comment-content">
+                            <div className="modern-comment-header">
+                              <div className="modern-comment-user-info">
+                                <span 
+                                  className="modern-comment-username"
+                                  onClick={(e) => handleCommentUserClick(comment, e)}
+                                >
+                                  {userName}
+                                </span>
+                                <span className="modern-comment-time">
                                   {commentDate}
                                 </span>
+                              </div>
+                              
+                              {isCommentByCurrentUser && (
+                                <div className="modern-comment-menu" ref={commentMenuRef}>
+                                  <button
+                                    className="modern-comment-menu-btn"
+                                    onClick={(e) => toggleCommentMenu(comment._id, e)}
+                                  >
+                                    <MoreVertical size={16} />
+                                  </button>
+                                  
+                                  {activeCommentMenu === comment._id && (
+                                    <div className="modern-comment-dropdown">
+                                      <button 
+                                        className="modern-comment-option"
+                                        onClick={() => startEditingComment(comment._id, comment.text)}
+                                      >
+                                        <Edit size={14} />
+                                        <span>Edit</span>
+                                      </button>
+                                      <button 
+                                        className="modern-comment-option delete"
+                                        onClick={() => {
+                                          if (window.confirm('Are you sure you want to delete this comment?')) {
+                                            deleteComment(comment._id, post._id);
+                                          }
+                                          setActiveCommentMenu(null);
+                                        }}
+                                      >
+                                        <Trash2 size={14} />
+                                        <span>Delete</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
-                            <p className="comment-text">{comment.text}</p>
-                            {userId === currentUserId && (
-                              <div className="comment-actions">
-                                <button 
-                                  className="comment-action-btn"
-                                  onClick={() => {
-                                    const newText = prompt('Edit your comment:', comment.text);
-                                    if (newText !== null) {
-                                      updateComment(comment._id, post._id, newText);
-                                    }
-                                  }}
-                                >
-                                  Edit
-                                </button>
-                                <button 
-                                  className="comment-action-btn delete"
-                                  onClick={() => deleteComment(comment._id, post._id)}
-                                >
-                                  Delete
-                                </button>
+                            
+                            {/* Edit Comment Mode */}
+                            {editingCommentId === comment._id ? (
+                              <div className="edit-comment-container">
+                                <textarea
+                                  value={editedCommentText[comment._id] || comment.text}
+                                  onChange={(e) => setEditedCommentText(prev => ({
+                                    ...prev,
+                                    [comment._id]: e.target.value
+                                  }))}
+                                  className="edit-comment-textarea"
+                                  rows={2}
+                                  autoFocus
+                                />
+                                <div className="edit-comment-actions">
+                                  <button 
+                                    className="edit-comment-cancel"
+                                    onClick={cancelEditingComment}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button 
+                                    className="edit-comment-save"
+                                    onClick={() => updateComment(comment._id, post._id, editedCommentText[comment._id])}
+                                    disabled={!editedCommentText[comment._id]?.trim()}
+                                  >
+                                    Save
+                                  </button>
+                                </div>
                               </div>
+                            ) : (
+                              // Normal Comment Display
+                              <>
+                                <p className="modern-comment-text">{comment.text}</p>
+                                
+                                <div className="modern-comment-actions">
+                                  <button 
+                                    className={`modern-comment-like ${comment.isLiked ? 'liked' : ''}`}
+                                    onClick={() => toggleCommentLike(comment._id, post._id)}
+                                  >
+                                    {comment.isLiked ? (
+                                      <Heart size={14} fill="#ed4956" />
+                                    ) : (
+                                      <HeartOutline size={14} />
+                                    )}
+                                    <span>{comment.likes?.length || 0}</span>
+                                  </button>
+                                  <button 
+                                    className="modern-comment-reply"
+                                    onClick={() => {
+                                      setReplyingTo(prev => ({ ...prev, [post._id]: comment.user?.name }));
+                                      setNewCommentText(prev => ({ 
+                                        ...prev, 
+                                        [post._id]: `@${comment.user?.name || 'user'} ` 
+                                      }));
+                                    }}
+                                  >
+                                    Reply
+                                  </button>
+                                </div>
+                              </>
                             )}
                           </div>
                         </div>
                       );
                     })
                   ) : (
-                    <div className="no-comments">No comments yet. Be the first to comment!</div>
+                    <div className="modern-no-comments">
+                      <MessageCircle size={48} />
+                      <p>No comments yet</p>
+                      <span>Be the first to share your thoughts!</span>
+                    </div>
                   )}
                 </div>
 
                 {/* Comment Input */}
-                <div className="comment-input-container">
-                  <input
-                    type="text"
-                    placeholder="Add a comment..."
-                    value={newCommentText[post._id] || ''}
-                    onChange={(e) => setNewCommentText(prev => ({
-                      ...prev,
-                      [post._id]: e.target.value
-                    }))}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        postComment(post._id, e);
-                      }
-                    }}
-                    className="comment-input"
-                  />
-                  <button
-                    onClick={(e) => postComment(post._id, e)}
-                    disabled={!newCommentText[post._id]?.trim()}
-                    className="comment-submit-btn"
-                  >
-                    <Send size={18} />
-                  </button>
+                <div className="modern-comment-input-container">
+                  {replyingTo[post._id] && (
+                    <div className="modern-replying-to">
+                      <span>Replying to @{replyingTo[post._id]}</span>
+                      <button onClick={() => setReplyingTo(prev => ({ ...prev, [post._id]: null }))}>
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div className="modern-comment-input-wrapper">
+                    <div className="modern-comment-avatar-input">
+                      {user?.avatar ? (
+                        <img src={user.avatar} alt={user.name} />
+                      ) : (
+                        <div className="modern-input-avatar-fallback">
+                          <User size={16} />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="modern-comment-input-group">
+                      <input
+                        type="text"
+                        placeholder="Add a comment..."
+                        value={newCommentText[post._id] || ''}
+                        onChange={(e) => setNewCommentText(prev => ({
+                          ...prev,
+                          [post._id]: e.target.value
+                        }))}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            postComment(post._id, e);
+                          }
+                        }}
+                        className="modern-comment-input"
+                      />
+                      <div className="modern-comment-actions-input">
+                        <button className="modern-comment-emoji">
+                          <Smile size={20} />
+                        </button>
+                        <button 
+                          onClick={(e) => postComment(post._id, e)}
+                          disabled={!newCommentText[post._id]?.trim()}
+                          className={`modern-comment-send ${newCommentText[post._id]?.trim() ? 'active' : ''}`}
+                        >
+                          <Send size={20} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
-            
-            {/* Omitted Editing/Delete Confirmation JSX */}
-            
           </article>
         ))
       ) : (
-        <div className="no-posts">No posts yet</div>
+        <div className="no-posts">
+          <MessageCircle size={48} />
+          <p>No posts yet</p>
+          <span>Follow users to see their posts here</span>
+        </div>
       )}
     </div>
   );

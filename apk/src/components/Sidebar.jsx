@@ -9,6 +9,7 @@ import { useTheme } from '../context/ThemeContext';
 const Sidebar = ({ user: propUser }) => {
   const [user, setUser] = useState(propUser || null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
@@ -49,7 +50,35 @@ const Sidebar = ({ user: propUser }) => {
 
     fetchUserData();
   }, [propUser]);
-
+useEffect(() => {
+    const fetchUnreadCount = async () => {
+        try {
+            const userId = localStorage.getItem('userId');
+            const token = localStorage.getItem('accessToken');
+            
+            if (!userId || !token) return;
+            
+            const response = await axios.get(
+                `http://localhost:30801/user/${userId}/notifications/unread`,
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+            
+            if (response.data.success) {
+                setUnreadCount(response.data.count);
+            }
+        } catch (error) {
+            console.error('Error fetching unread count:', error);
+        }
+    };
+    
+    fetchUnreadCount();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    
+    return () => clearInterval(interval);
+}, []);
   const handleLogout = () => {
     // Clear local storage
     localStorage.removeItem('accessToken');
@@ -108,7 +137,7 @@ const Sidebar = ({ user: propUser }) => {
             <span className="nav-text">Search</span>
           </Link>
           
-          <Link to="#" className="nav-item">
+          <Link to="/explore" className={`nav-item ${isActive('/explore') ? 'active' : ''}`}>
             <Compass className="nav-icon" />
             <span className="nav-text">Explore</span>
           </Link>
@@ -123,11 +152,15 @@ const Sidebar = ({ user: propUser }) => {
             <span className="nav-text">Create</span>
           </Link>
           
-          <Link to="#" className="nav-item">
-            <Heart className="nav-icon" />
+          <Link to="/notifications" className={`nav-item ${isActive('/notifications') ? 'active' : ''}`}>
+            <div className="notification-wrapper">
+              <Heart className="nav-icon" />
+                {unreadCount > 0 && (
+                  <span className="notification-badge">{unreadCount}</span>
+                  )}
+            </div>
             <span className="nav-text">Notifications</span>
           </Link>
-          
           <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
             {user && user.avatar ? (
               <img src={user.avatar} alt="Profile" className="nav-icon profile-pic" style={{ width: '24px', height: '24px', borderRadius: '50%' }} />

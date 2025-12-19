@@ -9,6 +9,8 @@ import SearchPage from './SearchPage';
 import UserProfilePage from './UserProfilePage';
 import FollowsPage from './FollowsPage';
 import Settings from './Settings';
+import Explore from './Explore';
+import Notifications from './Notifications';
 
 export default function Main() {
   return (
@@ -24,6 +26,8 @@ export default function Main() {
             <Route path={"/search"} element={<SearchPage/>} />
             <Route path={"/follows"} element={<FollowsPage/>} />
             <Route path={"/settings"} element={<Settings/>} />
+            <Route path="/explore" element={<Explore />} />
+            <Route path="/notifications" element={<Notifications />} />
         </Routes>
         </BrowserRouter>
     </div>
