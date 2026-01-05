@@ -14,6 +14,8 @@ import fs from 'fs';
 import mongoose from 'mongoose';
 import usermodel from "./models/UserModel.js";
 import { MulterError } from "multer";
+import jwt from 'jsonwebtoken';
+import notificationmodel from "./models/NotificationModel.js";
 
 dotenv.config()
 const app = express()
@@ -68,14 +70,56 @@ const io = new Server(server, {
   }
 });
 
+// Socket.io authentication middleware
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token || 
+                 socket.handshake.query.token;
+    
+    if (!token) {
+      console.log('Socket authentication failed: No token provided');
+      return next(new Error('Authentication error: Token required'));
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await usermodel.findById(decoded.id).select('_id name username');
+    
+    if (!user) {
+      console.log('Socket authentication failed: User not found');
+      return next(new Error('Authentication error: User not found'));
+    }
+
+    socket.userId = user._id.toString();
+    socket.userName = user.name || user.username;
+    
+    console.log(`Socket authenticated: ${socket.userId} (${socket.userName})`);
+    next();
+  } catch (error) {
+    console.error('Socket authentication error:', error.message);
+    next(new Error('Authentication error: Invalid token'));
+  }
+});
+
 // Socket.io connection handling
 io.on("connection", (socket) => {
-  console.log(`User Connected: ${socket.id}`);
+  console.log(`User Connected: ${socket.id} (User ID: ${socket.userId})`);
   
-  // Join a room for private messaging
-  socket.on("join_room", (userId) => {
-    socket.join(userId);
-    console.log(`User with ID: ${userId} joined room: ${userId}`);
+  // Join user's personal rooms
+  socket.join(socket.userId); // For notifications
+  socket.join(`user_${socket.userId}`); // For private messaging
+  
+  // Send connection confirmation
+  socket.emit('connected', { 
+    userId: socket.userId, 
+    message: 'Connected to real-time service' 
+  });
+  
+  // Handle join room for messaging
+  socket.on("join_room", (roomData) => {
+    if (roomData.roomId) {
+      socket.join(roomData.roomId);
+      console.log(`User ${socket.userId} joined room: ${roomData.roomId}`);
+    }
   });
   
   // Handle sending messages
@@ -86,7 +130,6 @@ io.on("connection", (socket) => {
       console.log(`Socket message: ${senderId} -> ${receiverId}: ${content}`);
       
       // If the message already has an ID, it was already saved to DB via HTTP
-      // Just forward it to the recipient
       if (_id) {
         console.log(`Forwarding existing message ${_id} to recipient ${receiverId}`);
         
@@ -119,6 +162,36 @@ io.on("connection", (socket) => {
         timestamp: newMessage.timestamp
       });
       
+      // Create notification for the message
+      const notification = new notificationmodel({
+        user: receiverId,
+        type: 'message',
+        fromUser: senderId,
+        message: content,
+        date: new Date(),
+        isRead: false
+      });
+      
+      await notification.save();
+      
+      // Populate notification
+      const populatedNotification = await notificationmodel.findById(notification._id)
+        .populate('fromUser', 'name avatar username');
+      
+      // Emit new notification to receiver
+      io.to(receiverId).emit('new-notification', populatedNotification);
+      
+      // Update unread count for receiver
+      const unreadCount = await notificationmodel.countDocuments({
+        user: receiverId,
+        isRead: false
+      });
+      
+      io.to(receiverId).emit('unread-count-updated', {
+        userId: receiverId,
+        count: unreadCount
+      });
+      
       console.log(`Message saved and sent from ${senderId} to ${receiverId} with ID ${newMessage._id}`);
     } catch (error) {
       console.error("Error handling socket message:", error);
@@ -132,15 +205,198 @@ io.on("connection", (socket) => {
       isTyping: data.isTyping
     });
   });
+  // Get unread count (for Sidebar)
+socket.on('get-unread-count', async () => {
+  try {
+    const unreadCount = await notificationmodel.countDocuments({
+      user: socket.userId,
+      isRead: false
+    });
+    
+    socket.emit('unread-count-response', {
+      userId: socket.userId,
+      count: unreadCount
+    });
+  } catch (error) {
+    console.error('Error getting unread count via socket:', error);
+  }
+});
+
+// Send initial unread count when user joins
+socket.on('join', (data) => {
+  console.log(`User ${socket.userId} joined notification room`);
+  socket.emit('connected', { 
+    userId: socket.userId, 
+    message: 'Connected to notification service' 
+  });
+  
+  // Send initial unread count
+  notificationmodel.countDocuments({
+    user: socket.userId,
+    isRead: false
+  }).then(count => {
+    socket.emit('unread-count-response', {
+      userId: socket.userId,
+      count: count
+    });
+  });
+});
+  // NOTIFICATION EVENTS
+  
+  // Mark notification as read
+  socket.on('mark-notification-read', async (data) => {
+    try {
+      const { notificationId } = data;
+      
+      const notification = await notificationmodel.findById(notificationId);
+      
+      if (!notification) {
+        console.error('Notification not found:', notificationId);
+        return;
+      }
+      
+      // Verify notification belongs to user
+      if (notification.user.toString() !== socket.userId) {
+        console.error('Unauthorized: User does not own this notification');
+        return;
+      }
+      
+      // Update notification
+      notification.isRead = true;
+      await notification.save();
+      
+      // Emit to user's room
+      io.to(socket.userId).emit('notification-read', {
+        notificationId: notification._id
+      });
+      
+      // Update unread count
+      const unreadCount = await notificationmodel.countDocuments({
+        user: socket.userId,
+        isRead: false
+      });
+      
+      io.to(socket.userId).emit('unread-count-updated', {
+        userId: socket.userId,
+        count: unreadCount
+      });
+      
+      console.log(`Notification ${notificationId} marked as read by user ${socket.userId}`);
+    } catch (error) {
+      console.error('Error marking notification as read via socket:', error);
+    }
+  });
+  
+  // Delete notification
+  socket.on('delete-notification', async (data) => {
+    try {
+      const { notificationId } = data;
+      
+      const notification = await notificationmodel.findById(notificationId);
+      
+      if (!notification) {
+        console.error('Notification not found:', notificationId);
+        return;
+      }
+      
+      // Verify notification belongs to user
+      if (notification.user.toString() !== socket.userId) {
+        console.error('Unauthorized: User does not own this notification');
+        return;
+      }
+      
+      // Delete the notification
+      await notificationmodel.findByIdAndDelete(notificationId);
+      
+      // Emit to user's room
+      io.to(socket.userId).emit('notification-deleted', {
+        notificationId
+      });
+      
+      // Update unread count if needed
+      if (!notification.isRead) {
+        const unreadCount = await notificationmodel.countDocuments({
+          user: socket.userId,
+          isRead: false
+        });
+        
+        io.to(socket.userId).emit('unread-count-updated', {
+          userId: socket.userId,
+          count: unreadCount
+        });
+      }
+      
+      console.log(`Notification ${notificationId} deleted by user ${socket.userId}`);
+    } catch (error) {
+      console.error('Error deleting notification via socket:', error);
+    }
+  });
+  
+  // Mark all notifications as read
+  socket.on('mark-all-notifications-read', async () => {
+    try {
+      await notificationmodel.updateMany(
+        { user: socket.userId, isRead: false },
+        { isRead: true }
+      );
+      
+      // Emit to user's room
+      io.to(socket.userId).emit('all-notifications-read', {
+        userId: socket.userId
+      });
+      
+      // Update unread count
+      io.to(socket.userId).emit('unread-count-updated', {
+        userId: socket.userId,
+        count: 0
+      });
+      
+      console.log(`All notifications marked as read for user ${socket.userId}`);
+    } catch (error) {
+      console.error('Error marking all notifications as read via socket:', error);
+    }
+  });
+  
+  // Get unread count
+  socket.on('get-unread-count', async () => {
+    try {
+      const unreadCount = await notificationmodel.countDocuments({
+        user: socket.userId,
+        isRead: false
+      });
+      
+      socket.emit('unread-count-response', {
+        userId: socket.userId,
+        count: unreadCount
+      });
+    } catch (error) {
+      console.error('Error getting unread count via socket:', error);
+    }
+  });
   
   // Handle disconnect
   socket.on("disconnect", () => {
-    console.log(`User Disconnected: ${socket.id}`);
+    console.log(`User Disconnected: ${socket.id} (User ID: ${socket.userId})`);
   });
+});
+
+// Attach io to request object for use in controllers
+app.use((req, res, next) => {
+  req.io = io;
+  next();
 });
 
 app.use(route)
 app.use('/uploads', express.static(uploadsDir))
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    websocket: io ? 'connected' : 'disconnected'
+  });
+});
 
 // Handle file uploads
 app.post('/api/upload', (req, res) => {
@@ -239,4 +495,40 @@ app.patch('/api/user/:id/avatar', (req, res) => {
 // Use server.listen instead of app.listen for Socket.io
 server.listen(process.env.PORT, (error) => {
   console.log("Server Running on Port " + process.env.PORT);
+  console.log("WebSocket server initialized for real-time notifications");
 });
+
+// Handle server shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('HTTP server closed');
+    mongoose.connection.close(false, () => {
+      console.log('MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('HTTP server closed');
+    mongoose.connection.close(false, () => {
+      console.log('MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+export { io };

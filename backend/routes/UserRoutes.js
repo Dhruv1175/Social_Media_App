@@ -5,7 +5,7 @@ import { createPost, deletePost, deleteSavedPost, feed, getOnePost, getAllPost, 
 import { addComment, deleteComment, getComment, updateComment } from "../controllers/CommentController.js";
 import { toggleLikeComment, toggleLikePost, getUserLikes ,  } from "../controllers/LikeController.js";
 import { getFollow, getFollowing, toggleFollow, getAllFollowRelationships, checkFollowStatus } from "../controllers/FollowController.js";
-import { markAllNotificationsAsRead, getNotifications, markNotificationAsRead,  getUnreadCount } from "../controllers/NotificationController.js";
+import { getNotifications,getNewNotifications, markNotificationAsRead,markAllNotificationsAsRead, getUnreadCount, deleteNotification, clearAllNotifications,getNotificationStats,createNotification} from "../controllers/NotificationController.js";
 import { DirectMessage, getMessage, sendMessage, getMessagedUsers } from "../controllers/MessageController.js";
 import { searchPosts, searchUser } from "../controllers/SearchControllers.js";
 // NEW IMPORTS for Story functionality
@@ -60,11 +60,24 @@ route.get("/follows/all", getAllFollowRelationships);
 route.get("/follows/check/:userid/:followid", checkFollowStatus);
 
 //notification action routes
-route.get("/user/:userid/notification",verifyToken,markAllNotificationsAsRead)
-route.get("/user/:userid/notifications", verifyToken, getNotifications);
-route.get("/user/:userid/notifications/unread", verifyToken, getUnreadCount);
-route.patch("/user/:userid/notification/:notificationId/read", verifyToken, markNotificationAsRead);
-route.post("/user/:userid/notification/mark-all-read", verifyToken, markAllNotificationsAsRead);
+route.get("/user/:userId/notifications", verifyToken, getNotifications);
+route.get("/user/:userId/notifications/new", verifyToken, getNewNotifications);
+route.get("/user/:userId/notifications/unread", verifyToken, getUnreadCount);
+route.get("/user/:userId/notifications/stats", verifyToken, getNotificationStats);
+route.patch("/user/:userId/notification/:notificationId/read", verifyToken, markNotificationAsRead);
+route.post("/user/:userId/notification/mark-all-read", verifyToken, markAllNotificationsAsRead);
+route.delete("/user/notification/:notificationId", verifyToken, deleteNotification);
+route.delete("/user/:userId/notifications/clear", verifyToken, clearAllNotifications);
+route.post("/user/notification/create", verifyToken, (req, res) => {
+    // This endpoint is for testing notification creation
+    createNotification(req.body, req.io).then(notification => {
+        if (notification) {
+            res.status(201).json({ success: true, notification });
+        } else {
+            res.status(500).json({ success: false, message: "Failed to create notification" });
+        }
+    });
+});
 
 //message action routes
 route.post("/user/:userid/receiver/:receiverid/message/send",verifyToken,sendMessage)
