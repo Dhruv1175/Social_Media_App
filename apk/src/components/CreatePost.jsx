@@ -5,6 +5,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../utils/firebaseConfig';
 import { useNavigate } from 'react-router-dom';
 import '../styles/CreatePost.css';
+import API from '../utils/api';
 
 const CreatePost = ({ onPostCreated, onCancel }) => {
   const [text, setText] = useState('');
@@ -262,8 +263,8 @@ const CreatePost = ({ onPostCreated, onCancel }) => {
       }
       
       // Create post via API
-      const response = await axios.post(
-        `http://localhost:30801/user/${userId}/post/userpost/create`,
+      const response = await API.post(
+        `/user/${userId}/post/userpost/create`,
         postData,
         { 
           headers: { 

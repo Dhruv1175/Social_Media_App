@@ -4,6 +4,7 @@ import axios from 'axios';
 import Sidebar from '../components/Sidebar';
 import { Users, UserPlus, UserCheck, Search, X, Sparkles } from 'lucide-react';
 import '../styles/FollowsPage.css';
+import API from '../utils/api';
 
 // Default image placeholders
 const DEFAULT_AVATAR = '/assets/default-avatar.svg';
@@ -42,8 +43,8 @@ const FollowsPage = () => {
       const headers = { Authorization: `Bearer ${token}` };
 
       // Fetch current user
-      const currentUserResponse = await axios.get(
-        `http://localhost:30801/user/profile/${userId}`,
+      const currentUserResponse = await API.get(
+        `/user/profile/${userId}`,
         { headers }
       );
       setCurrentUser(currentUserResponse.data.exist);
@@ -51,8 +52,8 @@ const FollowsPage = () => {
       // Fetch all users - using correct endpoint from UserRoutes.js
       try {
         console.log("Fetching all users...");
-        const allUsersResponse = await axios.get(
-          `http://localhost:30801/user/get/all`,
+        const allUsersResponse = await API.get(
+          `/user/get/all`,
           { headers }
         );
         
@@ -79,8 +80,8 @@ const FollowsPage = () => {
 
       // Get followers list - use profileId if available, otherwise use logged-in user
       try {
-        const followersResponse = await axios.get(
-          `http://localhost:30801/user/${targetUserId}/followers`,
+        const followersResponse = await API.get(
+          `/user/${targetUserId}/followers`,
           { headers }
         );
         
@@ -108,8 +109,8 @@ const FollowsPage = () => {
       
       // Get following list - use profileId if available, otherwise use logged-in user
       try {
-        const followingResponse = await axios.get(
-          `http://localhost:30801/user/${targetUserId}/following`,
+        const followingResponse = await API.get(
+          `/user/${targetUserId}/following`,
           { headers }
         );
         
@@ -215,8 +216,8 @@ const FollowsPage = () => {
       
       // Use the correct endpoint format from the backend routes
       const endpoint = isCurrentlyFollowing
-        ? `http://localhost:30801/user/${userId}/${userBeingActedOn}/unfollow`
-        : `http://localhost:30801/user/${userId}/${userBeingActedOn}/follow`;
+        ? `/user/${userId}/${userBeingActedOn}/unfollow`
+        : `/user/${userId}/${userBeingActedOn}/follow`;
       
       console.log(`Using endpoint: ${endpoint} for ${isCurrentlyFollowing ? 'unfollow' : 'follow'} action`);
       
@@ -241,7 +242,7 @@ const FollowsPage = () => {
       
       // Make API call with correct endpoint and empty body (as per backend implementation)
       try {
-        const response = await axios.post(
+        const response = await API.post(
           endpoint,
           {}, // Empty body as the backend uses route parameters
           { headers }
@@ -266,8 +267,8 @@ const FollowsPage = () => {
         const forceRefresh = async () => {
           try {
             // Refetch following status to ensure it's updated
-            const followingResponse = await axios.get(
-              `http://localhost:30801/user/${userId}/following`,
+            const followingResponse = await API.get(
+              `/user/${userId}/following`,
               { headers }
             );
             

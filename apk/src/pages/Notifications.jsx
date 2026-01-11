@@ -8,6 +8,7 @@ import {
     Trash2, Filter, RefreshCw, Wifi, WifiOff
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import API from '../utils/api';
 
 const Notifications = () => {
     const [notifications, setNotifications] = useState([]);
@@ -192,8 +193,8 @@ const Notifications = () => {
             const token = localStorage.getItem('accessToken');
             const userId = localStorage.getItem('userId');
             
-            const response = await axios.get(
-                `http://localhost:30801/user/${userId}/notifications/new`,
+            const response = await API.get(
+                `/user/${userId}/notifications/new`,
                 {
                     params: { since: latestNotificationId },
                     headers: { Authorization: `Bearer ${token}` }
@@ -223,8 +224,8 @@ const Notifications = () => {
                 
                 if (!userId || !token) return;
                 
-                const response = await axios.get(
-                    `http://localhost:30801/user/profile/${userId}`,
+                const response = await API.get(
+                    `/user/profile/${userId}`,
                     {
                         headers: {
                             Authorization: `Bearer ${token}`,
@@ -278,8 +279,8 @@ const Notifications = () => {
             const token = localStorage.getItem('accessToken');
             const userId = localStorage.getItem('userId');
             
-            const response = await axios.get(
-                `http://localhost:30801/user/${userId}/notifications/unread`,
+            const response = await API.get(
+                `/user/${userId}/notifications/unread`,
                 {
                     headers: { Authorization: `Bearer ${token}` }
                 }
@@ -314,8 +315,8 @@ const Notifications = () => {
                 params.type = 'follow';
             }
             
-            const response = await axios.get(
-                `http://localhost:30801/user/${userId}/notifications`,
+            const response = await API.get(
+                `/user/${userId}/notifications`,
                 {
                     params,
                     headers: { Authorization: `Bearer ${token}` }
@@ -353,8 +354,8 @@ const Notifications = () => {
             const token = localStorage.getItem('accessToken');
             const userId = localStorage.getItem('userId');
             
-            await axios.patch(
-                `http://localhost:30801/user/${userId}/notification/${notificationId}/read`,
+            await API.patch(
+                `/user/${userId}/notification/${notificationId}/read`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -372,8 +373,8 @@ const Notifications = () => {
             const token = localStorage.getItem('accessToken');
             const userId = localStorage.getItem('userId');
             
-            await axios.post(
-                `http://localhost:30801/user/${userId}/notification/mark-all-read`,
+            await API.post(
+                `/user/${userId}/notification/mark-all-read`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -390,8 +391,8 @@ const Notifications = () => {
         try {
             const token = localStorage.getItem('accessToken');
             
-            await axios.delete(
-                `http://localhost:30801/user/notification/${notificationId}`,
+            await API.delete(
+                `/user/notification/${notificationId}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             

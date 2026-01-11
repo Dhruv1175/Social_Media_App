@@ -9,6 +9,8 @@ import PostPage from './pages/PostPage';
 import Settings from './pages/Settings';
 import FeedPage from './pages/FeedPage';
 import './styles/App.css';
+import '../node_modules/bootstrap/dist/css/bootstrap.min.css'
+import '../node_modules/bootstrap/dist/js/bootstrap.min.js'
 import { ThemeProvider } from './context/ThemeContext';
 
 function App() {

@@ -3,6 +3,7 @@ import { Heart, MessageCircle, Share2, Bookmark, Edit, Check, MoreHorizontal, Tr
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import '../styles/Posts.css';
+import API from '../utils/api';
 
 const Posts = ({ posts: initialPosts, user }) => {
   const [posts, setPosts] = useState([]);
@@ -85,8 +86,8 @@ const Posts = ({ posts: initialPosts, user }) => {
     }
     
     try {
-      const response = await axios.get(
-        `http://localhost:30801/user/profile/${userId}`,
+      const response = await API.get(
+        `/user/profile/${userId}`,
         { headers: authHeaders() }
       );
       
@@ -136,8 +137,8 @@ const Posts = ({ posts: initialPosts, user }) => {
     setIsLoadingComments(prev => ({ ...prev, [postId]: true }));
     
     try {
-      const response = await axios.get(
-        `http://localhost:30801/user/post/userpost/${postId}/comment/get`,
+      const response = await API.get(
+        `/user/post/userpost/${postId}/comment/get`,
         { headers: authHeaders() }
       );
       
@@ -241,8 +242,8 @@ const Posts = ({ posts: initialPosts, user }) => {
     setReplyingTo(prev => ({ ...prev, [postId]: null }));
 
     try {
-      const response = await axios.post(
-        `http://localhost:30801/user/${currentUserId}/post/userpost/${postId}/comment/add`,
+      const response = await API.post(
+        `/user/${currentUserId}/post/userpost/${postId}/comment/add`,
         { text: commentText },
         { headers: authHeaders() }
       );
@@ -263,8 +264,8 @@ const Posts = ({ posts: initialPosts, user }) => {
   // Delete a comment
   const deleteComment = async (commentId, postId) => {
     try {
-      const response = await axios.delete(
-        `http://localhost:30801/user/post/userpost/comment/${commentId}/delete`,
+      const response = await API.delete(
+        `/user/post/userpost/comment/${commentId}/delete`,
         { headers: authHeaders() }
       );
 
@@ -282,8 +283,8 @@ const Posts = ({ posts: initialPosts, user }) => {
   // Toggle comment like
   const toggleCommentLike = async (commentId, postId) => {
     try {
-      const response = await axios.post(
-        `http://localhost:30801/user/${currentUserId}/post/userpost/${postId}/comment/${commentId}/like`,
+      const response = await API.post(
+        `/user/${currentUserId}/post/userpost/${postId}/comment/${commentId}/like`,
         null,
         { headers: authHeaders() }
       );
@@ -314,8 +315,8 @@ const Posts = ({ posts: initialPosts, user }) => {
     if (!newText.trim()) return;
 
     try {
-      const response = await axios.patch(
-        `http://localhost:30801/user/post/userpost/comment/${commentId}/update`,
+      const response = await API.patch(
+        `/user/post/userpost/comment/${commentId}/update`,
         { text: newText },
         { headers: authHeaders() }
       );
@@ -449,8 +450,8 @@ const Posts = ({ posts: initialPosts, user }) => {
     );
     
     try {
-      const endpoint = `http://localhost:30801/user/${currentUserId}/post/userpost/${postId}/like`;
-      await axios.post(endpoint, null, { headers: authHeaders() });
+      const endpoint = `/user/${currentUserId}/post/userpost/${postId}/like`;
+      await API.post(endpoint, null, { headers: authHeaders() });
     } catch (error) {
       console.error('Warning: Like update failed on server:', error);
     }
@@ -479,11 +480,11 @@ const Posts = ({ posts: initialPosts, user }) => {
       let endpoint;
       
       if (newIsSaved) {
-        endpoint = `http://localhost:30801/user/post/${currentUserId}/${postId}/save`;
-        await axios.post(endpoint, null, { headers: authHeaders() });
+        endpoint = `/user/post/${currentUserId}/${postId}/save`;
+        await API.post(endpoint, null, { headers: authHeaders() });
       } else {
-        endpoint = `http://localhost:30801/user/post/${currentUserId}/${postId}/unsave`;
-        await axios.delete(endpoint, { headers: authHeaders() });
+        endpoint = `/user/post/${currentUserId}/${postId}/unsave`;
+        await API.delete(endpoint, { headers: authHeaders() });
       }
     } catch (error) {
       console.error('Save update failed:', error);

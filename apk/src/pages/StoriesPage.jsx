@@ -8,7 +8,7 @@ import { uploadMediaToFirebase } from '../utils/MediaUploadService';
 // Default image placeholders
 const DEFAULT_AVATAR = '/assets/default-avatar.svg';
 const DEFAULT_STORY = '/assets/default-post.svg';
-const BASE_URL = 'http://localhost:30801/user'; 
+const BASE_URL = `${process.env.REACT_APP_API_URL}/user`; 
 
 const StoriesPage = () => {
     const navigate = useNavigate();

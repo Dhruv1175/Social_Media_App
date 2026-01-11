@@ -6,6 +6,7 @@ import '../styles/ProfilePage.css';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../utils/firebaseConfig';
+import API from '../utils/api';
 
 // Default image placeholders
 const DEFAULT_AVATAR = '/assets/default-avatar.svg';
@@ -189,28 +190,28 @@ const ProfilePage = () => {
         const authHeader = { Authorization: `Bearer ${token}` };
 
         // Fetch user profile
-        const userResponse = await axios.get(
-          `http://localhost:30801/user/profile/${userId}`,
+        const userResponse = await API.get(
+          `/user/profile/${userId}`,
           { headers: authHeader }
         );
 
         // Fetch user posts
-        const postsResponse = await axios.get(
-          `http://localhost:30801/user/${userId}/post/userpost/get`,
+        const postsResponse = await API.get(
+          `/user/${userId}/post/userpost/get`,
           { headers: authHeader }
         );
 
         // Fetch saved posts
-        const savedPostsResponse = await axios.get(
-          `http://localhost:30801/user/post/${userId}/saved`,
+        const savedPostsResponse = await API.get(
+          `/user/post/${userId}/saved`,
           { headers: authHeader }
         );
 
         // NEW: Fetch like counts for all posts
         let likeCounts = {};
         try {
-          const likeCountsResponse = await axios.get(
-            `http://localhost:30801/api/posts/likeCounts`,
+          const likeCountsResponse = await API.get(
+            `/api/posts/likeCounts`,
             { headers: authHeader }
           );
           
@@ -225,8 +226,8 @@ const ProfilePage = () => {
         // Get user's liked posts for proper like state
         let likedPostIds = userLikedPosts;
         try {
-          const userLikesResponse = await axios.get(
-            `http://localhost:30801/user/${userId}/likes`,
+          const userLikesResponse = await API.get(
+            `/user/${userId}/likes`,
             { headers: authHeader }
           );
           
@@ -370,8 +371,8 @@ const ProfilePage = () => {
         await Promise.all(
           posts.map(async (post) => {
             try {
-              const response = await axios.get(
-                `http://localhost:30801/user/post/userpost/${post._id}/comment/get`,
+              const response = await API.get(
+                `/user/post/userpost/${post._id}/comment/get`,
                 { headers: { Authorization: `Bearer ${token}` } }
               );
               
@@ -414,8 +415,8 @@ const ProfilePage = () => {
         await Promise.all(
           savedPosts.map(async (post) => {
             try {
-              const response = await axios.get(
-                `http://localhost:30801/user/post/userpost/${post._id}/comment/get`,
+              const response = await API.get(
+                `/user/post/userpost/${post._id}/comment/get`,
                 { headers: { Authorization: `Bearer ${token}` } }
               );
               
@@ -457,8 +458,8 @@ const ProfilePage = () => {
     
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(
-        `http://localhost:30801/user/profile/${userId}`,
+      const response = await API.get(
+        `/user/profile/${userId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -484,8 +485,8 @@ const ProfilePage = () => {
     
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(
-        `http://localhost:30801/user/post/userpost/${postId}/comment/get`,
+      const response = await API.get(
+        `/user/post/userpost/${postId}/comment/get`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -586,8 +587,8 @@ const ProfilePage = () => {
     setNewCommentText(prev => ({ ...prev, [postId]: '' }));
 
     try {
-      const response = await axios.post(
-        `http://localhost:30801/user/${userId}/post/userpost/${postId}/comment/add`,
+      const response = await API.post(
+        `/user/${userId}/post/userpost/${postId}/comment/add`,
         { text: commentText },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -621,8 +622,8 @@ const ProfilePage = () => {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.delete(
-        `http://localhost:30801/user/post/userpost/comment/${commentId}/delete`,
+      const response = await API.delete(
+        `/user/post/userpost/comment/${commentId}/delete`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -650,8 +651,8 @@ const ProfilePage = () => {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.patch(
-        `http://localhost:30801/user/post/userpost/comment/${commentId}/update`,
+      const response = await API.patch(
+        `/user/post/userpost/comment/${commentId}/update`,
         { text: newText },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -818,9 +819,9 @@ const ProfilePage = () => {
       console.log('Updating profile data:', updateData);
       
       // Update basic profile information
-      const profileResponse = await axios({
+      const profileResponse = await API({
         method: 'patch',
-        url: `http://localhost:30801/user/update/${userId}`,
+        url: `/user/update/${userId}`,
         data: updateData,
         headers: { 
           Authorization: `Bearer ${token}`
@@ -867,9 +868,9 @@ const ProfilePage = () => {
           console.log('Avatar uploaded successfully, URL:', downloadURL);
           
           // Update user profile with the Firebase URL
-          const avatarUpdateResponse = await axios({
+          const avatarUpdateResponse = await API({
             method: 'patch',
-            url: `http://localhost:30801/user/update/${userId}`,
+            url: `/user/update/${userId}`,
             data: { avatar: downloadURL },
             headers: { 
               Authorization: `Bearer ${token}`
@@ -1055,8 +1056,8 @@ const ProfilePage = () => {
       localStorage.setItem('userLikedPosts', JSON.stringify(updatedLikedPosts));
       
       // Now make the API call using the correct endpoint
-      const response = await axios.post(
-        `http://localhost:30801/user/${userId}/post/userpost/${postId}/like`,
+      const response = await API.post(
+        `/user/${userId}/post/userpost/${postId}/like`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -1165,8 +1166,8 @@ const ProfilePage = () => {
       
       // Use the correct endpoint path from the backend routes
       // The route is: route.post("/user/post/:userid/:postid/save",verifyToken,savedPost);
-      const response = await axios.post(
-        `http://localhost:30801/user/post/${userId}/${postId}/save`,
+      const response = await API.post(
+        `/user/post/${userId}/${postId}/save`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -1435,8 +1436,8 @@ const ProfilePage = () => {
       }
       
       // Using the correct route from the backend with proper authentication
-      const response = await axios.delete(
-        `http://localhost:30801/user/post/userpost/${selectedPost._id}/delete`,
+      const response = await API.delete(
+        `/user/post/userpost/${selectedPost._id}/delete`,
         { 
           headers: { 
             Authorization: `Bearer ${token}`,
@@ -1720,8 +1721,8 @@ const ProfilePage = () => {
               formData.append('media', newFileUpload);
               formData.append('type', uploadType); // 'image' or 'video'
               
-              const response = await axios.post(
-                `http://localhost:30801/uploads/media`,
+              const response = await API.post(
+                `/uploads/media`,
                 formData,
                 {
                   headers: { 
@@ -1777,8 +1778,8 @@ const ProfilePage = () => {
       }
       
       // Update the post using API
-      const response = await axios.patch(
-        `http://localhost:30801/user/post/userpost/${selectedPost._id}/update`,
+      const response = await API.patch(
+        `/user/post/userpost/${selectedPost._id}/update`,
         updateData,
         { 
           headers: { 

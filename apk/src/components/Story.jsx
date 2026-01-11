@@ -4,11 +4,12 @@ import { Plus, X, ChevronLeft, ChevronRight, Send, Heart, Upload, Eye, Clock, Us
 import '../styles/Story.css';
 import { useNavigate } from 'react-router-dom';
 import { uploadMediaToFirebase } from '../utils/MediaUploadService';
+import API from '../utils/api';
 
 // Default image placeholders
 const DEFAULT_AVATAR = '/assets/default-avatar.svg';
 const DEFAULT_STORY = '/assets/default-post.svg';
-const BASE_URL = 'http://localhost:30801/user';
+const BASE_URL = '/user';
 
 const Story = () => {
     const navigate = useNavigate();
@@ -60,7 +61,7 @@ const Story = () => {
             const headers = getAuthHeaders();
             
             // Fetch user profile
-            const userResponse = await axios.get(`${BASE_URL}/profile/${userId}`, { headers });
+            const userResponse = await API.get(`${BASE_URL}/profile/${userId}`, { headers });
             const currentUserData = userResponse.data.exist || userResponse.data;
             if (!currentUserData || !currentUserData._id) {
                 throw new Error('Invalid user data received');
@@ -68,7 +69,7 @@ const Story = () => {
             setCurrentUser(currentUserData);
             
             // Fetch story feed
-            const storyFeedResponse = await axios.get(`${BASE_URL}/story/feed`, { headers });
+            const storyFeedResponse = await API.get(`${BASE_URL}/story/feed`, { headers });
             let feedData = storyFeedResponse.data;
             
             if (!Array.isArray(feedData)) {
@@ -124,7 +125,7 @@ const Story = () => {
 
     const markStoryAsViewedAPI = async (storyId) => {
         try {
-            await axios.post(`${BASE_URL}/story/${storyId}/view`, {}, { 
+            await API.post(`${BASE_URL}/story/${storyId}/view`, {}, { 
                 headers: getAuthHeaders() 
             });
         } catch (error) {
@@ -135,7 +136,7 @@ const Story = () => {
     const fetchStoryViewers = useCallback(async (storyId) => {
         if (!currentUser || !storyId) return;
         try {
-            const response = await axios.get(`${BASE_URL}/story/${storyId}/views`, { 
+            const response = await API.get(`${BASE_URL}/story/${storyId}/views`, { 
                 headers: getAuthHeaders() 
             });
             setStoryViewers(response.data.viewers || []);
@@ -365,7 +366,7 @@ const Story = () => {
                 caption: storyCaption,
             };
             
-            const response = await axios.post(
+            const response = await API.post(
                 `${BASE_URL}/story/create`, 
                 storyData, 
                 { headers: getAuthHeaders() }

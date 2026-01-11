@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Search, X, Clock, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/SearchBar.css';
+import API from '../utils/api';
 
 // Default image placeholders
 const DEFAULT_AVATAR = '/assets/default-avatar.svg';
@@ -86,10 +87,8 @@ const SearchBar = () => {
         return;
       }
       
-      console.log('Making API request to:', `http://localhost:30801/user/search?q=${encodeURIComponent(searchQuery)}`);
-      
-      const response = await axios.get(
-        `http://localhost:30801/user/search?q=${encodeURIComponent(searchQuery)}`, 
+      const response = await API.get(
+        `/user/search?q=${encodeURIComponent(searchQuery)}`, 
         {
           headers: {
             Authorization: `Bearer ${token}`

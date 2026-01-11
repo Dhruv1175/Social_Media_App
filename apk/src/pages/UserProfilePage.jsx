@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar';
 import { Grid, Bookmark, User, MoreHorizontal, Edit, Trash2, Heart, MessageCircle, Share2, X, BookmarkCheck, Film, Send, Check, X as XIcon } from 'lucide-react';
 import '../styles/UserProfilePage.css';
 import '../styles/ProfilePage.css';
+import API from '../utils/api';
 
 // Default image placeholders
 const DEFAULT_AVATAR = '/assets/default-avatar.svg';
@@ -144,16 +145,16 @@ const UserProfilePage = () => {
         const headers = { Authorization: `Bearer ${token}` };
 
         // Fetch current logged-in user
-        const currentUserResponse = await axios.get(
-          `http://localhost:30801/user/profile/${currentUserId}`,
+        const currentUserResponse = await API.get(
+          `/user/profile/${currentUserId}`,
           { headers }
         );
         
         setCurrentUser(currentUserResponse.data.exist);
 
         // Fetch profile user data
-        const profileResponse = await axios.get(
-          `http://localhost:30801/user/profile/${userId}`,
+        const profileResponse = await API.get(
+          `/user/profile/${userId}`,
           { headers }
         );
 
@@ -171,8 +172,8 @@ const UserProfilePage = () => {
 
         // Fetch follow status directly from the check endpoint
         try {
-          const followCheckResponse = await axios.get(
-            `http://localhost:30801/follows/check/${currentUserId}/${userId}`,
+          const followCheckResponse = await API.get(
+            `/follows/check/${currentUserId}/${userId}`,
             { headers }
           );
           
@@ -192,8 +193,8 @@ const UserProfilePage = () => {
         // Fetch like counts for all posts
         let likeCounts = {};
         try {
-          const likeCountsResponse = await axios.get(
-            `http://localhost:30801/api/posts/likeCounts`,
+          const likeCountsResponse = await API.get(
+            `/api/posts/likeCounts`,
             { headers }
           );
           
@@ -207,8 +208,8 @@ const UserProfilePage = () => {
         // Get user's liked posts
         let likedPostIds = JSON.parse(localStorage.getItem('userLikedPosts') || '[]');
         try {
-          const userLikesResponse = await axios.get(
-            `http://localhost:30801/user/${currentUserId}/likes`,
+          const userLikesResponse = await API.get(
+            `/user/${currentUserId}/likes`,
             { headers }
           );
           
@@ -221,8 +222,8 @@ const UserProfilePage = () => {
         }
 
         // Fetch user posts
-        const postsResponse = await axios.get(
-          `http://localhost:30801/user/${userId}/post/userpost/get`,
+        const postsResponse = await API.get(
+          `/user/${userId}/post/userpost/get`,
           { headers }
         );
 
@@ -272,8 +273,8 @@ const UserProfilePage = () => {
       const headers = { Authorization: `Bearer ${token}` };
       
       // Refresh profile user data
-      const profileResponse = await axios.get(
-        `http://localhost:30801/user/profile/${userId}`,
+      const profileResponse = await API.get(
+        `/user/profile/${userId}`,
         { headers }
       );
       
@@ -284,8 +285,8 @@ const UserProfilePage = () => {
       }
       
       // Refresh follow status
-      const followCheckResponse = await axios.get(
-        `http://localhost:30801/follows/check/${currentUserId}/${userId}`,
+      const followCheckResponse = await API.get(
+        `/follows/check/${currentUserId}/${userId}`,
         { headers }
       );
       
@@ -316,8 +317,8 @@ const UserProfilePage = () => {
       
       // Determine endpoint based on current follow status
       const endpoint = isFollowing 
-        ? `http://localhost:30801/user/${currentUserId}/${profileUser._id}/unfollow`
-        : `http://localhost:30801/user/${currentUserId}/${profileUser._id}/follow`;
+        ? `/user/${currentUserId}/${profileUser._id}/unfollow`
+        : `/user/${currentUserId}/${profileUser._id}/follow`;
       
       console.log(`${isFollowing ? 'Unfollowing' : 'Following'} user ${profileUser._id}`);
       
@@ -327,7 +328,7 @@ const UserProfilePage = () => {
       setFollowersCount(prev => wasFollowing ? Math.max(0, prev - 1) : prev + 1);
       
       try {
-        const response = await axios.post(endpoint, {}, { headers });
+        const response = await API.post(endpoint, {}, { headers });
         
         if (response.data && response.data.success) {
           console.log(`${wasFollowing ? 'Unfollowed' : 'Followed'} successfully`);
@@ -402,8 +403,8 @@ const UserProfilePage = () => {
         await Promise.all(
           posts.map(async (post) => {
             try {
-              const response = await axios.get(
-                `http://localhost:30801/user/post/userpost/${post._id}/comment/get`,
+              const response = await API.get(
+                `/user/post/userpost/${post._id}/comment/get`,
                 { headers: { Authorization: `Bearer ${token}` } }
               );
               
@@ -445,8 +446,8 @@ const UserProfilePage = () => {
     
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(
-        `http://localhost:30801/user/post/userpost/${postId}/comment/get`,
+      const response = await API.get(
+        `/user/post/userpost/${postId}/comment/get`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -492,8 +493,8 @@ const UserProfilePage = () => {
     
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(
-        `http://localhost:30801/user/profile/${userId}`,
+      const response = await API.get(
+        `/user/profile/${userId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -543,8 +544,8 @@ const UserProfilePage = () => {
     setNewCommentText(prev => ({ ...prev, [postId]: '' }));
 
     try {
-      const response = await axios.post(
-        `http://localhost:30801/user/${currentUserId}/post/userpost/${postId}/comment/add`,
+      const response = await API.post(
+        `/user/${currentUserId}/post/userpost/${postId}/comment/add`,
         { text: commentText },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -574,8 +575,8 @@ const UserProfilePage = () => {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.delete(
-        `http://localhost:30801/user/post/userpost/comment/${commentId}/delete`,
+      const response = await API.delete(
+        `/user/post/userpost/comment/${commentId}/delete`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -601,8 +602,8 @@ const UserProfilePage = () => {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.patch(
-        `http://localhost:30801/user/post/userpost/comment/${commentId}/update`,
+      const response = await API.patch(
+        `/user/post/userpost/comment/${commentId}/update`,
         { text: newText },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -743,8 +744,8 @@ const UserProfilePage = () => {
       localStorage.setItem('userLikedPosts', JSON.stringify(updatedLikedPosts));
       
       // API call
-      await axios.post(
-        `http://localhost:30801/user/${currentUserId}/post/userpost/${postId}/like`,
+      await API.post(
+        `/user/${currentUserId}/post/userpost/${postId}/like`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -798,8 +799,8 @@ const UserProfilePage = () => {
       setSavedPosts(updatedSavedPosts);
       
       // API call
-      await axios.post(
-        `http://localhost:30801/user/post/${currentUserId}/${postId}/save`,
+      await API.post(
+        `/user/post/${currentUserId}/${postId}/save`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -1031,8 +1032,8 @@ const UserProfilePage = () => {
       const token = localStorage.getItem('accessToken');
       const headers = { Authorization: `Bearer ${token}` };
       
-      const response = await axios.patch(
-        `http://localhost:30801/user/post/userpost/${selectedPost._id}/update`,
+      const response = await API.patch(
+        `/user/post/userpost/${selectedPost._id}/update`,
         { text: editedPostText },
         { headers }
       );
@@ -1066,8 +1067,8 @@ const UserProfilePage = () => {
       const token = localStorage.getItem('accessToken');
       const headers = { Authorization: `Bearer ${token}` };
       
-      const response = await axios.delete(
-        `http://localhost:30801/user/post/userpost/${selectedPost._id}/delete`,
+      const response = await API.delete(
+        `/user/post/userpost/${selectedPost._id}/delete`,
         { headers }
       );
       

@@ -5,6 +5,7 @@ import logo from '../assets/logo.png'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { useNavigate } from 'react-router-dom';
+import API from "../utils/api";
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -31,7 +32,7 @@ function Login() {
     setError("");
     
     try {
-      const response = await axios.post('http://localhost:30801/user/login', formData);
+      const response = await API.post('user/login', formData);
       
       // Check if login was successful
       if (response.data.success) {

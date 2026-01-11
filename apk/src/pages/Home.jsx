@@ -6,6 +6,7 @@ import Story from '../components/Story';
 import '../styles/Home.css';
 import { useNavigate } from 'react-router-dom';
 import { Users, RefreshCw } from 'lucide-react'; 
+import API from '../utils/api';
 
 function Home() {
   const [posts, setPosts] = useState([]);
@@ -22,8 +23,8 @@ function Home() {
   const fetchSuggestions = async (userId, token) => {
     try {
       const [allUsersResponse, followingResponse] = await Promise.all([
-        axios.get(`http://localhost:30801/user/get/all`, { headers: authHeaders(token) }),
-        axios.get(`http://localhost:30801/user/${userId}/following`, { headers: authHeaders(token) }),
+        API.get(`/user/get/all`, { headers: authHeaders(token) }),
+        API.get(`/user/${userId}/following`, { headers: authHeaders(token) }),
       ]);
 
       const allUsers = allUsersResponse.data.users || [];
@@ -87,10 +88,10 @@ function Home() {
     // --- FETCH FRESH DATA & SYNC ---
     try {
       const [postsResponse, userResponse, likesResponse, savedPostsResponse] = await Promise.all([
-        axios.get(`http://localhost:30801/user/post/${userId}/feed`, { headers }),
-        axios.get(`http://localhost:30801/user/profile/${userId}`, { headers }),
-        axios.get(`http://localhost:30801/user/${userId}/likes`, { headers }),
-        axios.get(`http://localhost:30801/user/post/${userId}/saved`, { headers }).catch(e => ({ data: { saved: [] } })),
+        API.get(`/user/post/${userId}/feed`, { headers }),
+        API.get(`/user/profile/${userId}`, { headers }),
+        API.get(`/user/${userId}/likes`, { headers }),
+        API.get(`/user/post/${userId}/saved`, { headers }).catch(e => ({ data: { saved: [] } })),
       ]);
 
       await fetchSuggestions(userId, token); 
@@ -182,10 +183,10 @@ function Home() {
 
     try {
         const endpoint = isFollowing 
-            ? `http://localhost:30801/user/${userId}/${suggestionId}/unfollow` 
-            : `http://localhost:30801/user/${userId}/${suggestionId}/follow`;
+            ? `/user/${userId}/${suggestionId}/unfollow` 
+            : `/user/${userId}/${suggestionId}/follow`;
         
-        await axios.post(endpoint, {}, { headers: authHeaders(token) });
+        await API.post(endpoint, {}, { headers: authHeaders(token) });
 
         setSuggestions(prevSuggestions => 
             prevSuggestions.map(s => 

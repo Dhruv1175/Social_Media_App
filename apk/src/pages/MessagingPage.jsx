@@ -5,6 +5,7 @@ import io from 'socket.io-client';
 import Sidebar from '../components/Sidebar';
 import { Send, User, ArrowLeft, ExternalLink } from 'lucide-react';
 import '../styles/MessagingPage.css';
+import API from '../utils/api';
 
 const MessagingPage = () => {
   const location = useLocation();
@@ -31,7 +32,13 @@ const MessagingPage = () => {
     }
 
     // Connect to socket.io server
-    const newSocket = io('http://localhost:30801');
+    const SOCKET_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const newSocket = io(SOCKET_URL, {
+  transports: ['websocket'], // Better for AWS/Nginx stability
+  withCredentials: true,
+  reconnectionAttempts: 5,
+  timeout: 10000,
+});
     setSocket(newSocket);
 
     // Clean up on component unmount
@@ -107,16 +114,16 @@ const MessagingPage = () => {
         const headers = { Authorization: `Bearer ${token}` };
 
         // Fetch user profile
-        const userResponse = await axios.get(
-          `http://localhost:30801/user/profile/${userId}`,
+        const userResponse = await API.get(
+          `/user/profile/${userId}`,
           { headers }
         );
 
         setUser(userResponse.data.exist);
 
         // Fetch contacts with message history
-        const messageContactsResponse = await axios.get(
-          `http://localhost:30801/user/${userId}/messages/contacts`,
+        const messageContactsResponse = await API.get(
+          `/user/${userId}/messages/contacts`,
           { headers }
         );
 
@@ -125,13 +132,13 @@ const MessagingPage = () => {
           const messageContacts = messageContactsResponse.data.users || [];
           
           // Fetch user's followers and following to add potential contacts who haven't messaged yet
-          const followersResponse = await axios.get(
-            `http://localhost:30801/user/${userId}/followers`,
+          const followersResponse = await API.get(
+            `/user/${userId}/followers`,
             { headers }
           );
 
-          const followingResponse = await axios.get(
-            `http://localhost:30801/user/${userId}/following`,
+          const followingResponse = await API.get(
+            `/user/${userId}/following`,
             { headers }
           );
 
@@ -172,13 +179,13 @@ const MessagingPage = () => {
           setContacts(enhancedContacts);
         } else {
           // Fallback to only followers/following if message contacts fails
-          const followersResponse = await axios.get(
-            `http://localhost:30801/user/${userId}/followers`,
+          const followersResponse = await API.get(
+            `/user/${userId}/followers`,
             { headers }
           );
 
-          const followingResponse = await axios.get(
-            `http://localhost:30801/user/${userId}/following`,
+          const followingResponse = await API.get(
+            `/user/${userId}/following`,
             { headers }
           );
 
@@ -251,8 +258,8 @@ const MessagingPage = () => {
         console.log(`Fetching messages between ${userId} and ${selectedContact._id}`);
 
         // Fetch messages between current user and selected contact
-        const response = await axios.get(
-          `http://localhost:30801/user/${userId}/${selectedContact._id}/message/get`,
+        const response = await API.get(
+          `/user/${userId}/${selectedContact._id}/message/get`,
           { headers }
         );
 
@@ -361,8 +368,8 @@ const MessagingPage = () => {
       setNewMessage('');
 
       // Send message via HTTP request to ensure persistence
-      const response = await axios.post(
-        `http://localhost:30801/user/${userId}/receiver/${selectedContact._id}/message/send`,
+      const response = await API.post(
+        `/user/${userId}/receiver/${selectedContact._id}/message/send`,
         { content: newMessage },
         {
           headers: {

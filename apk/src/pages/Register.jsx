@@ -4,6 +4,7 @@ import '../styles/Register.css';
 import axios from 'axios';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import API from '../utils/api';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -35,9 +36,9 @@ export default function Register() {
       return;
     }
     try {
-      const response = await axios.post("http://localhost:30801/user/register", formData);
+      const response = await API.post("/user/register", formData);
       alert(response.data.message);
-      navigate("/login");
+      navigate("/");
     } catch (error) {
       console.error("Registration error:", error);
       alert(error.response?.data?.message || "Registration failed. Please try again.");

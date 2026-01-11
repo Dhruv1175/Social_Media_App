@@ -6,6 +6,7 @@ import { Instagram, Home, Compass, MessageCircle, Heart, PlusSquare, Menu, LogOu
 import axios from 'axios';
 import CreatePost from './CreatePost';
 import { useTheme } from '../context/ThemeContext';
+import API from '../utils/api';
 
 const Sidebar = ({ user: propUser }) => {
   const [user, setUser] = useState(propUser || null);
@@ -143,8 +144,8 @@ const Sidebar = ({ user: propUser }) => {
       
       if (!userId || !token) return;
       
-      const response = await axios.get(
-        `http://localhost:30801/user/${userId}/notifications/unread`,
+      const response = await API.get(
+        `/user/${userId}/notifications/unread`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -176,8 +177,8 @@ const Sidebar = ({ user: propUser }) => {
           return;
         }
 
-        const response = await axios.get(
-          `http://localhost:30801/user/profile/${userId}`,
+        const response = await API.get(
+          `/user/profile/${userId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

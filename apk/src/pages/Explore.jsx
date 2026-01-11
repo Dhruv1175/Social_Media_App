@@ -10,6 +10,7 @@ import {
 import '../styles/Explore.css';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
+import API from '../utils/api';
 
 // Default image placeholders
 const DEFAULT_AVATAR = '/assets/default-avatar.svg';
@@ -116,8 +117,8 @@ const Explore = () => {
         
         if (!userId || !token) return;
         
-        const response = await axios.get(
-          `http://localhost:30801/user/profile/${userId}`,
+        const response = await API.get(
+          `/user/profile/${userId}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -146,9 +147,9 @@ const Explore = () => {
         }
 
         // Fetch all posts (both posts and reels)
-        const response = await axios.get('http://localhost:30801/user/posts/get', {
-          params: { 
-            page: 1, 
+        const response = await API.get('/user/posts/get', {
+          params: {
+            page: 1,
             limit: 100 // Fetch large batch to get all posts
           },
           headers: { Authorization: `Bearer ${token}` }
@@ -160,8 +161,8 @@ const Explore = () => {
           // Fetch user's liked posts
           let likedPostIds = [];
           try {
-            const userLikesResponse = await axios.get(
-              `http://localhost:30801/user/${userId}/likes`,
+            const userLikesResponse = await API.get(
+              `/user/${userId}/likes`,
               { headers: { Authorization: `Bearer ${token}` } }
             );
             
@@ -178,8 +179,8 @@ const Explore = () => {
           // Fetch saved posts
           let savedPostIds = [];
           try {
-            const savedPostsResponse = await axios.get(
-              `http://localhost:30801/user/post/${userId}/saved`,
+            const savedPostsResponse = await API.get(
+              `/user/post/${userId}/saved`,
               { headers: { Authorization: `Bearer ${token}` } }
             );
             
@@ -298,8 +299,8 @@ if (selectedPost && selectedPost._id === postId) {
       localStorage.setItem('userLikedPosts', JSON.stringify(newLikedPosts));
 
       // Make API call
-      const response = await axios.post(
-        `http://localhost:30801/user/${userId}/post/userpost/${postId}/like`,
+      const response = await API.post(
+        `/user/${userId}/post/userpost/${postId}/like`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -377,8 +378,8 @@ if (selectedPost && selectedPost._id === postId) {
       }
 
       // Make API call
-      const response = await axios.post(
-        `http://localhost:30801/user/post/${userId}/${postId}/save`,
+      const response = await API.post(
+        `/user/post/${userId}/${postId}/save`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -408,8 +409,8 @@ if (selectedPost && selectedPost._id === postId) {
     
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(
-        `http://localhost:30801/user/post/userpost/${postId}/comment/get`,
+      const response = await API.get(
+        `/user/post/userpost/${postId}/comment/get`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -421,8 +422,8 @@ if (selectedPost && selectedPost._id === postId) {
             
             if (userId) {
               try {
-                const userResponse = await axios.get(
-                  `http://localhost:30801/user/profile/${userId}`,
+                const userResponse = await API.get(
+                  `/user/profile/${userId}`,
                   { headers: { Authorization: `Bearer ${token}` } }
                 );
                 userData = userResponse.data.exist;
@@ -499,8 +500,8 @@ if (selectedPost && selectedPost._id === postId) {
     setNewCommentText(prev => ({ ...prev, [postId]: '' }));
 
     try {
-      const response = await axios.post(
-        `http://localhost:30801/user/${userId}/post/userpost/${postId}/comment/add`,
+      const response = await API.post(
+        `/user/${userId}/post/userpost/${postId}/comment/add`,
         { text: commentText },
         { headers: { Authorization: `Bearer ${token}` } }
       );

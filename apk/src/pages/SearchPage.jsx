@@ -4,6 +4,7 @@ import axios from 'axios';
 import Sidebar from '../components/Sidebar';
 import { Search, User } from 'lucide-react';
 import '../styles/SearchPage.css';
+import API from '../utils/api';
 
 const SearchPage = () => {
   const [user, setUser] = useState(null);
@@ -24,8 +25,8 @@ const SearchPage = () => {
           return;
         }
 
-        const response = await axios.get(
-          `http://localhost:30801/user/profile/${userId}`,
+        const response = await API.get(
+          `/user/profile/${userId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -68,8 +69,8 @@ const SearchPage = () => {
         return;
       }
       
-      const response = await axios.get(
-        `http://localhost:30801/user/search?q=${encodeURIComponent(query)}`, 
+      const response = await API.get(
+        `/user/search?q=${encodeURIComponent(query)}`, 
         {
           headers: {
             Authorization: `Bearer ${token}`
