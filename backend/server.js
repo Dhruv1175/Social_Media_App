@@ -19,7 +19,8 @@ import notificationmodel from "./models/NotificationModel.js";
 
 dotenv.config()
 const app = express()
-app.use(cors())
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(CookieParser())
 app.use(express.json())
 
@@ -64,7 +65,7 @@ const server = http.createServer(app);
 // Initialize Socket.io
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001"], // Allow connections from React frontend
+    origin: ["http://15.134.234.10", "http://localhost:3000", "http://localhost:3001"],
     methods: ["GET", "POST"],
     credentials: true
   }
