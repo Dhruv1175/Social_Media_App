@@ -59,32 +59,18 @@ const newSocket = io(SOCKET_URL, {
 
     // Event listeners
     socket.on('receive_message', (data) => {
-      console.log('Received message via socket:', data);
+  if (selectedContact && (data.sender === selectedContact._id || data.senderId === selectedContact._id)) {
+    setMessages((prevMessages) => {
+      // Check by _id only if available, otherwise fallback to content/timestamp
+      const isDuplicate = prevMessages.some(msg => 
+        (msg._id && data._id && msg._id === data._id) || 
+        (msg.content === data.content && msg.sender === data.sender)
+      );
       
-      // Only add the message if it's from the currently selected contact
-      if (selectedContact && (data.sender === selectedContact._id || data.senderId === selectedContact._id)) {
-        setMessages((prevMessages) => {
-          // Check if this message is already in the list to avoid duplicates
-          const isDuplicate = prevMessages.some(
-            msg => msg._id === data._id || 
-                  (msg.content === data.content && 
-                   msg.sender === data.sender && 
-                   new Date(msg.timestamp).getTime() === new Date(data.timestamp).getTime())
-          );
-          
-          if (isDuplicate) {
-            return prevMessages;
-          }
-          
-          // Add the new message
-          return [...prevMessages, data];
-        });
-      } else {
-        // If message is from someone else, we could show a notification
-        console.log('New message from non-active contact:', data);
-        // Implement notification here if needed
-      }
+      return isDuplicate ? prevMessages : [...prevMessages, data];
     });
+  }
+});
 
     socket.on('typing_indicator', (data) => {
       if (selectedContact && (data.senderId === selectedContact._id)) {
