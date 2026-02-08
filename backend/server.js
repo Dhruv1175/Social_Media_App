@@ -82,7 +82,7 @@ io.use(async (socket, next) => {
       return next(new Error('Authentication error: Token required'));
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_KEY);
     const user = await usermodel.findById(decoded.id).select('_id name username');
     
     if (!user) {
