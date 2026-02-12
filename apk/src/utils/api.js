@@ -1,6 +1,5 @@
 import axios from 'axios';
-import dotenv from 'dotenv';
-dotenv.config();
+
 // This pulls the URL from your .env file automatically
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
 
