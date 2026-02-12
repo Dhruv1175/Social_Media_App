@@ -20,7 +20,22 @@ import notificationmodel from "./models/NotificationModel.js";
 dotenv.config()
 const app = express()
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    const isVercel = origin.endsWith('.vercel.app');
+    const isLocal = origin.includes('localhost');
+
+    if (isVercel || isLocal || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 app.use(CookieParser())
 app.use(express.json())
 
